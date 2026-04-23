@@ -1,0 +1,1152 @@
+const fs = require('fs');
+const {
+  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  AlignmentType, HeadingLevel, BorderStyle, WidthType, ShadingType,
+  LevelFormat, PageOrientation, Footer, PageNumber, Header
+} = require('docx');
+
+// ============ HELPERS ============
+const border = { style: BorderStyle.SINGLE, size: 4, color: "888888" };
+const borders = { top: border, bottom: border, left: border, right: border };
+
+const P = (text, opts = {}) => new Paragraph({
+  spacing: { after: 120, line: 300 },
+  alignment: opts.align || AlignmentType.JUSTIFIED,
+  children: [new TextRun({ text, bold: !!opts.bold, italics: !!opts.italic, size: 22 })],
+  ...opts.paragraph
+});
+
+const PRich = (runs, opts = {}) => new Paragraph({
+  spacing: { after: 120, line: 300 },
+  alignment: opts.align || AlignmentType.JUSTIFIED,
+  children: runs.map(r => typeof r === 'string'
+    ? new TextRun({ text: r, size: 22 })
+    : new TextRun({ text: r.text, bold: !!r.bold, italics: !!r.italic, size: 22 })),
+  ...opts.paragraph
+});
+
+const H1 = (text) => new Paragraph({
+  heading: HeadingLevel.HEADING_1,
+  spacing: { before: 360, after: 180 },
+  children: [new TextRun({ text, bold: true, size: 28 })]
+});
+
+const H2 = (text) => new Paragraph({
+  spacing: { before: 240, after: 120 },
+  children: [new TextRun({ text, bold: true, size: 24 })]
+});
+
+const Item = (num, text) => new Paragraph({
+  spacing: { after: 120, line: 300 },
+  alignment: AlignmentType.JUSTIFIED,
+  children: [new TextRun({ text: `${num} - ${text}`, size: 22 })]
+});
+
+const SubItem = (num, text, indent = 360) => new Paragraph({
+  spacing: { after: 120, line: 300 },
+  alignment: AlignmentType.JUSTIFIED,
+  indent: { left: indent },
+  children: [new TextRun({ text: `${num} - ${text}`, size: 22 })]
+});
+
+const Bullet = (text, indent = 720) => new Paragraph({
+  spacing: { after: 80, line: 300 },
+  alignment: AlignmentType.JUSTIFIED,
+  indent: { left: indent, hanging: 220 },
+  children: [new TextRun({ text: `• ${text}`, size: 22 })]
+});
+
+const Empty = () => new Paragraph({ children: [new TextRun("")] });
+
+// ============ TABLES ============
+function tCell(text, opts = {}) {
+  return new TableCell({
+    borders,
+    width: { size: opts.width || 1500, type: WidthType.DXA },
+    shading: opts.header ? { fill: "D9E2F3", type: ShadingType.CLEAR } : undefined,
+    margins: { top: 80, bottom: 80, left: 120, right: 120 },
+    children: [new Paragraph({
+      alignment: opts.align || AlignmentType.LEFT,
+      children: [new TextRun({ text, bold: !!opts.bold || !!opts.header, size: 20 })]
+    })]
+  });
+}
+
+// Tabela do objeto (item 1.1)
+const objetoTable = new Table({
+  width: { size: 9000, type: WidthType.DXA },
+  columnWidths: [600, 2800, 1100, 900, 1800, 1800],
+  rows: [
+    new TableRow({
+      tableHeader: true, children: [
+        tCell("ITEM", { header: true, width: 600, align: AlignmentType.CENTER }),
+        tCell("DESCRIÇÃO / ESPECIFICAÇÃO", { header: true, width: 2800, align: AlignmentType.CENTER }),
+        tCell("UNIDADE", { header: true, width: 1100, align: AlignmentType.CENTER }),
+        tCell("QUANT", { header: true, width: 900, align: AlignmentType.CENTER }),
+        tCell("VALOR UNIT. MÁXIMO", { header: true, width: 1800, align: AlignmentType.CENTER }),
+        tCell("VALOR TOTAL", { header: true, width: 1800, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("1", { width: 600, align: AlignmentType.CENTER }),
+        tCell("Serviço de Implantação, Configuração, Customização e Integração", { width: 2800 }),
+        tCell("Unidade", { width: 1100, align: AlignmentType.CENTER }),
+        tCell("01", { width: 900, align: AlignmentType.CENTER }),
+        tCell("", { width: 1800 }),
+        tCell("", { width: 1800 }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("2", { width: 600, align: AlignmentType.CENTER }),
+        tCell("Serviço de Capacitação e Treinamento", { width: 2800 }),
+        tCell("Turma", { width: 1100, align: AlignmentType.CENTER }),
+        tCell("12", { width: 900, align: AlignmentType.CENTER }),
+        tCell("", { width: 1800 }),
+        tCell("", { width: 1800 }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("3", { width: 600, align: AlignmentType.CENTER }),
+        tCell("Cessão de Uso Temporário de Licenças com Suporte Técnico e Manutenções Corretivas e Evolutivas", { width: 2800 }),
+        tCell("Mês", { width: 1100, align: AlignmentType.CENTER }),
+        tCell("60", { width: 900, align: AlignmentType.CENTER }),
+        tCell("", { width: 1800 }),
+        tCell("", { width: 1800 }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("4", { width: 600, align: AlignmentType.CENTER }),
+        tCell("Banco de Horas Técnicas para Customizações Evolutivas e Integrações Adicionais (sob demanda)", { width: 2800 }),
+        tCell("Hora Técnica", { width: 1100, align: AlignmentType.CENTER }),
+        tCell("1.000", { width: 900, align: AlignmentType.CENTER }),
+        tCell("", { width: 1800 }),
+        tCell("", { width: 1800 }),
+      ]
+    }),
+  ]
+});
+
+// SLA - Severidade x Prazos
+const slaTable = new Table({
+  width: { size: 9000, type: WidthType.DXA },
+  columnWidths: [1200, 4200, 1800, 1800],
+  rows: [
+    new TableRow({
+      tableHeader: true, children: [
+        tCell("Severidade", { header: true, width: 1200, align: AlignmentType.CENTER }),
+        tCell("Descrição da Ocorrência", { header: true, width: 4200, align: AlignmentType.CENTER }),
+        tCell("Tempo de Resposta", { header: true, width: 1800, align: AlignmentType.CENTER }),
+        tCell("Tempo de Solução", { header: true, width: 1800, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Crítica", { width: 1200, bold: true }),
+        tCell("Indisponibilidade total do sistema ou falha que impeça a execução de processos vitais (ex.: impossibilidade de emitir ASO ou transmitir eventos do eSocial), sem solução de contorno.", { width: 4200 }),
+        tCell("Até 2 horas corridas (24x7)", { width: 1800, align: AlignmentType.CENTER }),
+        tCell("Até 8 horas corridas (24x7)", { width: 1800, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Alta", { width: 1200, bold: true }),
+        tCell("Falha em funcionalidade importante que não paralisa a operação completa, ou existência de solução de contorno paliativa. Inclui lentidão excessiva que degrada a operação.", { width: 4200 }),
+        tCell("Até 4 horas úteis", { width: 1800, align: AlignmentType.CENTER }),
+        tCell("Até 24 horas úteis", { width: 1800, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Média", { width: 1200, bold: true }),
+        tCell("Falhas em funcionalidades secundárias, erros cosméticos ou dificuldades operacionais que não impactam o fluxo crítico de negócio.", { width: 4200 }),
+        tCell("Até 8 horas úteis", { width: 1800, align: AlignmentType.CENTER }),
+        tCell("Até 48 horas úteis", { width: 1800, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Baixa", { width: 1200, bold: true }),
+        tCell("Dúvidas operacionais, solicitações de informação, requisição de manuais ou sugestões de melhoria.", { width: 4200 }),
+        tCell("Até 12 horas úteis", { width: 1800, align: AlignmentType.CENTER }),
+        tCell("Até 5 dias úteis", { width: 1800, align: AlignmentType.CENTER }),
+      ]
+    }),
+  ]
+});
+
+// Glosa de disponibilidade
+const glosaDispTable = new Table({
+  width: { size: 9000, type: WidthType.DXA },
+  columnWidths: [4500, 4500],
+  rows: [
+    new TableRow({
+      tableHeader: true, children: [
+        tCell("Disponibilidade Mensal Apurada", { header: true, width: 4500, align: AlignmentType.CENTER }),
+        tCell("Glosa sobre o valor mensal da Cessão de Uso", { header: true, width: 4500, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Igual ou superior a 99,5%", { width: 4500 }),
+        tCell("Sem glosa", { width: 4500, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Inferior a 99,5% e igual ou superior a 99,0%", { width: 4500 }),
+        tCell("2% (dois por cento)", { width: 4500, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Inferior a 99,0% e igual ou superior a 98,0%", { width: 4500 }),
+        tCell("5% (cinco por cento)", { width: 4500, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Inferior a 98,0% e igual ou superior a 95,0%", { width: 4500 }),
+        tCell("10% (dez por cento)", { width: 4500, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Inferior a 95,0%", { width: 4500 }),
+        tCell("20% (vinte por cento), sem prejuízo de sanções administrativas", { width: 4500, align: AlignmentType.CENTER }),
+      ]
+    }),
+  ]
+});
+
+// Glosa por chamado
+const glosaChamadoTable = new Table({
+  width: { size: 9000, type: WidthType.DXA },
+  columnWidths: [3000, 3000, 3000],
+  rows: [
+    new TableRow({
+      tableHeader: true, children: [
+        tCell("Severidade", { header: true, width: 3000, align: AlignmentType.CENTER }),
+        tCell("Glosa por chamado fora do prazo de Resposta", { header: true, width: 3000, align: AlignmentType.CENTER }),
+        tCell("Glosa por chamado fora do prazo de Solução", { header: true, width: 3000, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Crítica", { width: 3000, bold: true, align: AlignmentType.CENTER }),
+        tCell("0,5%", { width: 3000, align: AlignmentType.CENTER }),
+        tCell("1,0%", { width: 3000, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Alta", { width: 3000, bold: true, align: AlignmentType.CENTER }),
+        tCell("0,3%", { width: 3000, align: AlignmentType.CENTER }),
+        tCell("0,5%", { width: 3000, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Média", { width: 3000, bold: true, align: AlignmentType.CENTER }),
+        tCell("0,1%", { width: 3000, align: AlignmentType.CENTER }),
+        tCell("0,3%", { width: 3000, align: AlignmentType.CENTER }),
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Baixa", { width: 3000, bold: true, align: AlignmentType.CENTER }),
+        tCell("0,05%", { width: 3000, align: AlignmentType.CENTER }),
+        tCell("0,1%", { width: 3000, align: AlignmentType.CENTER }),
+      ]
+    }),
+  ]
+});
+
+// Função para criar matriz de risco
+function riskBox(num, descricao, prob, impacto, materializacao, mitigacao, alocacao) {
+  const boxBorder = { style: BorderStyle.SINGLE, size: 4, color: "555555" };
+  const boxBorders = { top: boxBorder, bottom: boxBorder, left: boxBorder, right: boxBorder };
+  const cell = (children, opts = {}) => new TableCell({
+    borders: boxBorders,
+    width: { size: opts.width || 4500, type: WidthType.DXA },
+    shading: opts.header ? { fill: "BFBFBF", type: ShadingType.CLEAR } : (opts.subhead ? { fill: "E7E6E6", type: ShadingType.CLEAR } : undefined),
+    margins: { top: 80, bottom: 80, left: 120, right: 120 },
+    children: children
+  });
+  const para = (text, opts = {}) => new Paragraph({
+    alignment: opts.align || AlignmentType.LEFT,
+    children: [new TextRun({ text, bold: !!opts.bold, size: 20 })]
+  });
+
+  return new Table({
+    width: { size: 9000, type: WidthType.DXA },
+    columnWidths: [2200, 6800],
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            borders: boxBorders, width: { size: 9000, type: WidthType.DXA },
+            shading: { fill: "BFBFBF", type: ShadingType.CLEAR },
+            columnSpan: 2,
+            margins: { top: 80, bottom: 80, left: 120, right: 120 },
+            children: [para(`RISCO ${num}`, { bold: true, align: AlignmentType.CENTER })]
+          })
+        ]
+      }),
+      new TableRow({
+        children: [
+          cell([para("Descrição:", { bold: true })], { width: 2200 }),
+          cell([para(descricao)], { width: 6800 })
+        ]
+      }),
+      new TableRow({
+        children: [
+          cell([para("Probabilidade:", { bold: true })], { width: 2200 }),
+          cell([para(prob)], { width: 6800 })
+        ]
+      }),
+      new TableRow({
+        children: [
+          cell([para("Impacto:", { bold: true })], { width: 2200 }),
+          cell([para(impacto)], { width: 6800 })
+        ]
+      }),
+      new TableRow({
+        children: [
+          new TableCell({
+            borders: boxBorders, width: { size: 9000, type: WidthType.DXA },
+            shading: { fill: "E7E6E6", type: ShadingType.CLEAR },
+            columnSpan: 2,
+            margins: { top: 80, bottom: 80, left: 120, right: 120 },
+            children: [para("Materialização (consequência se o risco ocorrer)", { bold: true })]
+          })
+        ]
+      }),
+      new TableRow({
+        children: [
+          new TableCell({
+            borders: boxBorders, width: { size: 9000, type: WidthType.DXA },
+            columnSpan: 2,
+            margins: { top: 80, bottom: 80, left: 120, right: 120 },
+            children: [para(materializacao)]
+          })
+        ]
+      }),
+      new TableRow({
+        children: [
+          new TableCell({
+            borders: boxBorders, width: { size: 6300, type: WidthType.DXA },
+            shading: { fill: "E7E6E6", type: ShadingType.CLEAR },
+            margins: { top: 80, bottom: 80, left: 120, right: 120 },
+            children: [para("Ação de mitigação (prevenção)", { bold: true })]
+          }),
+          new TableCell({
+            borders: boxBorders, width: { size: 2700, type: WidthType.DXA },
+            shading: { fill: "E7E6E6", type: ShadingType.CLEAR },
+            margins: { top: 80, bottom: 80, left: 120, right: 120 },
+            children: [para("Alocação", { bold: true, align: AlignmentType.CENTER })]
+          })
+        ]
+      }),
+      new TableRow({
+        children: [
+          new TableCell({
+            borders: boxBorders, width: { size: 6300, type: WidthType.DXA },
+            margins: { top: 80, bottom: 80, left: 120, right: 120 },
+            children: [para(mitigacao)]
+          }),
+          new TableCell({
+            borders: boxBorders, width: { size: 2700, type: WidthType.DXA },
+            margins: { top: 80, bottom: 80, left: 120, right: 120 },
+            children: [para(alocacao, { align: AlignmentType.CENTER, bold: true })]
+          })
+        ]
+      }),
+    ]
+  });
+}
+
+// ============ DOCUMENT CONTENT ============
+
+const children = [];
+
+// CABEÇALHO PRINCIPAL
+children.push(new Paragraph({
+  alignment: AlignmentType.CENTER,
+  spacing: { before: 240, after: 360 },
+  children: [new TextRun({ text: "TERMO DE REFERÊNCIA", bold: true, size: 32 })]
+}));
+
+// 1. DO OBJETO
+children.push(H1("1 - DO OBJETO"));
+children.push(Item("1.1", "Serviços nos termos da tabela abaixo, conforme condições e exigências estabelecidas neste Termo de Referência:"));
+children.push(Empty());
+children.push(objetoTable);
+children.push(Empty());
+
+children.push(Item("1.2", "A contratação será realizada em lote único, considerando que os serviços são inter-relacionados e interdependentes. A divisão do objeto é inadequada e inviável para o caso concreto, pois não se vislumbra a possibilidade de existirem CONTRATADAS distintas que farão a implantação, treinamento e suporte da solução ofertada, pois cada CONTRATADA detém o conhecimento técnico e expertise necessária somente da sua própria solução."));
+children.push(Item("1.3", "O agrupamento em lote único não inviabilizará a concorrência, sendo que a disposição dos itens busca tão somente a identificação individualizada de cada componente e a respectiva representatividade no conjunto da contratação."));
+children.push(Item("1.4", "Os quantitativos dos itens de contratação foram dimensionados durante a etapa de planejamento da contratação, considerando a estrutura atual dos órgãos e das entidades da administração direta, autárquica e fundacional do Poder Executivo Estadual."));
+children.push(Item("1.5", "Atualmente existem 53 (cinquenta e três) órgãos e entidades estaduais, com cerca de 60.000 (sessenta mil) vidas a serem gerenciadas pela solução de Saúde e Segurança do Trabalho - SST a ser contratada, admitindo-se variação de até 5% (cinco por cento) deste quantitativo, para mais ou para menos, durante a vigência do contrato (faixa de 57.000 a 63.000 vidas)."));
+children.push(Item("1.6", "Os serviços objeto desta contratação são caracterizados como comuns, conforme justificativa constante do Estudo Técnico Preliminar."));
+children.push(Item("1.7", "O objeto desta contratação não se enquadra como sendo de bem de luxo, conforme Decreto nº 5.352-R/2023."));
+children.push(Item("1.8", "O prazo de vigência da contratação, considerado o cronograma de execução desenvolvido, será de 5 (cinco) anos, prorrogável por até 10 (dez) anos, tendo sido definido com base nas seguintes razões: a contratação é fundamental para a implementação da Política de Saúde e Segurança no Trabalho para os servidores do Poder Executivo Estadual, projeto estratégico com prazo até 2028, e o prazo de 5 anos garante a execução após a implementação. Além disso, a solução é necessária para atender às exigências legais relacionadas à Política de Saúde e Segurança no Trabalho e à adequação ao eSocial, e um contrato de longo prazo assegura a conformidade contínua."));
+
+// 2. FUNDAMENTAÇÃO
+children.push(H1("2 - FUNDAMENTAÇÃO E DESCRIÇÃO DA NECESSIDADE DA CONTRATAÇÃO"));
+children.push(Item("2.1", "A Fundamentação da Contratação e de seus quantitativos está no Estudo Técnico Preliminar (ETP) aprovado, que concluiu pela viabilidade técnica e econômica da contratação de Software de Saúde e Segurança do Trabalho no modelo SaaS. O ETP completo encontra-se anexo a este Termo de Referência."));
+children.push(Item("2.2", "A Gerência de Saúde e Qualidade de Vida no Trabalho – GESAT, por meio da sua Subgerência de Saúde e Segurança no Trabalho – SUSET, tem como uma de suas atribuições a regulamentação da Política de Saúde e Segurança no Trabalho dos servidores do Poder Executivo Estadual. Para atingir o sucesso nessa atribuição, foi implementado o Projeto Estratégico Saúde e Segurança do Servidor, que tem como objetivo implementar a Política de Saúde e Segurança do Trabalho para os servidores do Poder Executivo Estadual, até 2028."));
+children.push(Item("2.3", "A contratação de Software de Saúde e Segurança do Trabalho é necessária para atender às exigências legais relacionadas à implementação da Política de Saúde e Segurança no Trabalho dos Servidores Públicos do Poder Executivo Estadual, conforme legislação vigente."));
+children.push(Item("2.4", "A solução permitirá: melhorias na aplicabilidade e gestão da Política de Segurança e Saúde no Trabalho; garantia de direitos sociais aos servidores públicos (ex.: adicionais de insalubridade, periculosidade e aposentadoria especial); prevenção de passivos trabalhistas (ex.: ações judiciais, fiscalizações); ambiente laboral seguro e saudável aos servidores; prevenção de acidentes do trabalho e doenças ocupacionais; adequação ao eSocial (Sistema de Escrituração Digital das Obrigações Fiscais, Previdenciárias e Trabalhistas)."));
+
+// 3. DESCRIÇÃO DA SOLUÇÃO
+children.push(H1("3 - DESCRIÇÃO DA SOLUÇÃO COMO UM TODO CONSIDERADO O CICLO DE VIDA DO OBJETO E ESPECIFICAÇÃO DO PRODUTO"));
+children.push(Item("3.1", "A descrição da solução consiste em fornecimento de Software de Saúde e Segurança do Trabalho através de subscrição (Cessão de Uso Temporário de Licenças), disponibilizada no modelo Software as a Service (SaaS), contemplando:"));
+children.push(Item("3.2", "Serviços de implantação, incluindo configuração, parametrização, migração de dados e disponibilização da solução para uso;"));
+children.push(Item("3.3", "Capacitação e treinamento dos usuários;"));
+children.push(Item("3.4", "Cessão de uso temporário das licenças com serviços de suporte técnico e manutenções corretivas e evolutivas."));
+children.push(H2("Ciclo de Vida do Objeto"));
+children.push(Item("3.5", "O ciclo de vida do objeto contempla as seguintes fases:"));
+children.push(Item("3.6", "Fase de Implantação: configuração, parametrização, migração de dados e disponibilização da solução para uso."));
+children.push(Item("3.7", "Fase de Capacitação: treinamento dos usuários conforme perfis e áreas de conhecimento."));
+children.push(Item("3.8", "Fase de Operação: utilização da solução pelos usuários, com suporte técnico e manutenções."));
+children.push(Item("3.9", "Fase de Encerramento e Transição Contratual: ao final do contrato, entrega dos dados em formato estruturado e aberto, com documentação técnica detalhada, conforme item 5.8 deste Termo."));
+
+// 4. REQUISITOS DA CONTRATAÇÃO
+children.push(H1("4 - REQUISITOS DA CONTRATAÇÃO"));
+
+children.push(H2("Dos Requisitos Gerais"));
+children.push(Item("4.1", "A solução deverá estar completamente licenciada de forma a atender as Normas Regulamentadoras de Saúde e Segurança do Trabalho vigentes, relacionadas aos trabalhos desenvolvidos no âmbito da Administração Pública Estadual, permitindo a gestão e controle do GRO/PGR, ASO, APR, LTCAT, PPP, CIPA, EPI/EPC, PAE/PPCI, PCMSO, PCA, FAP, NTEP, Laudos de Insalubridade/Periculosidade, gestão de acidentes e doenças ocupacionais (investigação, registro e acompanhamento das ocorrências), ordens de serviços, vacinação, controle de treinamentos, absenteísmo, brigada de incêndio e controle de extintores."));
+
+children.push(H2("Dos Requisitos Tecnológicos e de Arquitetura"));
+children.push(Item("4.2", "Modalidade SaaS: o sistema deve ser fornecido na modalidade Software as a Service (SaaS), 100% web, acessível via navegador de internet, sem necessidade de instalação de plugins ou componentes locais nas estações de trabalho da CONTRATANTE."));
+children.push(Item("4.3", "Disponibilidade e Acesso: a solução deve estar disponível 24 horas por dia, 7 dias por semana, garantindo acesso via internet a partir de qualquer dispositivo (desktops, notebooks, tablets e smartphones) com design responsivo."));
+children.push(Item("4.4", "Hospedagem: a infraestrutura de nuvem (hosting) deve ser de responsabilidade integral da CONTRATADA, garantindo redundância, backup automático e alta disponibilidade. A hospedagem dos dados deverá obrigatoriamente ocorrer em data centers localizados em território nacional, em razão da natureza sensível dos dados de saúde tratados (art. 11 da Lei nº 13.709/2018 — LGPD), assegurando a jurisdição brasileira sobre os dados."));
+children.push(Item("4.5", "Atualizações: o sistema deve receber atualizações evolutivas e corretivas (legislativas e tecnológicas) periodicamente, realizadas pelo fabricante, sem custos adicionais para a CONTRATANTE."));
+children.push(Item("4.6", "Compatibilidade: o sistema deve ser compatível com os principais navegadores de mercado (Google Chrome, Mozilla Firefox, Microsoft Edge, Safari), sempre nas duas últimas versões estáveis."));
+
+children.push(H2("Dos Requisitos de Segurança da Informação e Conformidade Legal"));
+children.push(Item("4.7", "Certificações de Segurança e Privacidade: o fornecedor/fabricante da solução deve possuir e comprovar certificação ISO/IEC 27001 (Sistema de Gestão de Segurança da Informação). É também altamente recomendável, e será aceito como diferencial técnico de conformidade, que o fornecedor possua a certificação ISO/IEC 27701 (Sistema de Gestão de Privacidade da Informação), demonstrando maturidade na gestão da privacidade alinhada à LGPD. Caso o fornecedor/fabricante não possua a certificação ISO/IEC 27001, deverá apresentar relatório técnico de auditoria independente comprovando a aderência aos requisitos de segurança exigidos neste TR."));
+children.push(Item("4.8", "Portaria ME nº 211/2019: o sistema deve atender integralmente aos requisitos da Portaria nº 211 de 11/04/2019 do Ministério da Economia (e suas atualizações), viabilizando a assinatura digital e a guarda eletrônica dos documentos de SST."));
+children.push(Item("4.9", "Assinatura Digital e Coleta de Evidências Biométricas: a solução deve possuir funcionalidade nativa para assinatura eletrônica de documentos (ASO, PGR, PCMSO, etc.) utilizando:"));
+children.push(SubItem("4.9.1", "Certificado Digital (e-CPF/e-CNPJ padrão ICP-Brasil);"));
+children.push(SubItem("4.9.2", "Assinatura biométrica (facial e/ou digital), aplicável especialmente aos registros de entrega de EPIs e à confirmação de participação em treinamentos, garantindo autenticidade, integridade e validade jurídica;"));
+children.push(SubItem("4.9.3", "Login e senha com rastreabilidade segura, com registro de IP e geolocalização (quando autorizado pelo titular)."));
+children.push(Item("4.10", "Lei Geral de Proteção de Dados (LGPD): a solução deve estar em conformidade com a Lei nº 13.709/2018, observando-se, no mínimo:"));
+children.push(SubItem("4.10.1", "Indicação formal do Encarregado pelo Tratamento de Dados Pessoais (DPO) da CONTRATADA no início da execução contratual, com canal de comunicação direto;"));
+children.push(SubItem("4.10.2", "Apresentação, no início da execução contratual, do Registro das Operações de Tratamento de Dados Pessoais (ROPA) realizadas em decorrência do contrato, mantido atualizado durante toda a vigência;"));
+children.push(SubItem("4.10.3", "Identificação prévia e expressa de eventuais sub-operadores (subcontratados que tratem dados pessoais), inclusive provedores de infraestrutura em nuvem, com obrigação de comunicar previamente à CONTRATANTE qualquer alteração na cadeia;"));
+children.push(SubItem("4.10.4", "Notificação formal à CONTRATANTE de qualquer incidente de segurança que envolva dados pessoais em até 24 (vinte e quatro) horas após sua identificação, contendo, no mínimo, descrição do incidente, dados afetados, medidas adotadas e plano de remediação;"));
+children.push(SubItem("4.10.5", "Mecanismos de anonimização, pseudonimização e controle de acesso baseado em perfis (princípio do menor privilégio);"));
+children.push(SubItem("4.10.6", "Cumprimento, no prazo legal, de solicitações da CONTRATANTE relativas ao exercício dos direitos dos titulares (art. 18 da LGPD);"));
+children.push(SubItem("4.10.7", "Devolução ou eliminação dos dados pessoais ao término da prestação do serviço, mediante termo formal, ressalvadas as hipóteses legais de retenção."));
+children.push(Item("4.11", "Auditoria (Logs Imutáveis): o sistema deve manter registro de logs de auditoria imutáveis, permitindo rastrear todas as ações realizadas (criação, edição, exclusão, visualização e impressão), identificando o usuário, data, hora e IP de origem. Para alterações e exclusões, os logs deverão obrigatoriamente registrar o estado anterior e o estado posterior da informação modificada, garantindo integridade probatória, segurança jurídica e capacidade de perícia em caso de incidentes."));
+children.push(Item("4.12", "Criptografia: a CONTRATADA deverá implementar mecanismos de criptografia para proteção dos dados em trânsito (TLS 1.2 ou superior) e em repouso (AES-256 ou equivalente)."));
+children.push(Item("4.13", "Propriedade dos Dados: todos os dados inseridos e gerados pela CONTRATANTE na plataforma são de propriedade exclusiva da CONTRATANTE. Ao término do contrato, a CONTRATADA deverá garantir a entrega integral de todos os dados em formato estruturado e aberto, conforme especificado no item de Encerramento e Transição Contratual. O código-fonte de customizações, extensões ou módulos desenvolvidos especificamente para atender a um requisito exclusivo da CONTRATANTE, e que não façam parte do produto padrão do fornecedor, deverão ter sua documentação técnica e direitos de uso não exclusivo cedidos à CONTRATANTE para fins de continuidade."));
+
+children.push(H2("Dos Requisitos Funcionais Gerais e Administrativos"));
+children.push(Item("4.14", "Gestão de Acesso Autônoma: o sistema deve permitir que a CONTRATANTE administre seus usuários (criar, bloquear, inativar, redefinir senhas) e configure perfis de acesso (leitura, gravação, aprovação) sem depender de intervenção do suporte da CONTRATADA."));
+children.push(Item("4.15", "Multiempresa e Hierarquia: o sistema deve suportar estrutura organizacional complexa, permitindo a gestão de múltiplas unidades, lotações, setores e cargos, mantendo o histórico de movimentação do servidor/empregado."));
+children.push(Item("4.16", "Painel de Controle (Dashboard): o sistema deve apresentar, na tela inicial, indicadores gerenciais (KPIs) e alertas de pendências (ex.: exames a vencer, vacinas pendentes, documentos não assinados). Adicionalmente, deverá disponibilizar um conjunto de APIs documentadas para permitir a extração de dados brutos para a ferramenta de Business Intelligence corporativa do Estado."));
+
+children.push(H2("Dos Requisitos Funcionais Específicos – Saúde e Segurança do Trabalho"));
+children.push(Item("4.17", "O sistema deve contemplar, nativamente, os seguintes módulos e funcionalidades:"));
+
+children.push(Item("4.18", "Gestão de Saúde Ocupacional (PCMSO e ASO)"));
+children.push(SubItem("4.18.1", "Elaboração e gestão do PCMSO (Programa de Controle Médico de Saúde Ocupacional) conforme NR-07."));
+children.push(SubItem("4.18.2", "Emissão de ASO (Atestado de Saúde Ocupacional) 100% digital, abrangendo exames admissionais, periódicos, demissionais, retorno ao trabalho e mudança de função."));
+children.push(SubItem("4.18.3", "Controle de exames complementares (audiometria, espirometria, raio-x, laboratoriais, etc.) com anexo de laudos digitalizados."));
+children.push(SubItem("4.18.4", "Emissão de Relatório Anual do PCMSO e estatísticas de saúde."));
+children.push(SubItem("4.18.5", "Permitir o registro e elaboração do Programa de Proteção Respiratória (PPR)."));
+children.push(SubItem("4.18.6", "Permitir a criação de outros questionários voltados para promoção e prevenção de saúde."));
+
+children.push(Item("4.19", "Gestão de Segurança e Riscos (PGR/GRO)"));
+children.push(SubItem("4.19.1", "Elaboração e gestão do PGR (Programa de Gerenciamento de Riscos) e GRO (Gerenciamento de Riscos Ocupacionais) conforme NR-01."));
+children.push(SubItem("4.19.2", "Inventário de Riscos Ocupacionais detalhado por GHE (Grupo Homogêneo de Exposição) ou por servidor."));
+children.push(SubItem("4.19.3", "Matriz de Riscos configurável."));
+children.push(SubItem("4.19.4", "Plano de Ação integrado ao cronograma de vencimentos, com vínculo direto às suas origens (ex.: itens do inventário de riscos do PGR, investigações de acidentes). Para cada ação, deverá ser possível definir responsáveis, cronogramas, metas e vincular evidências de conclusão (documentos e fotos)."));
+children.push(SubItem("4.19.5", "Permitir o registro da CAT, bem como o envio ao ambiente do eSocial."));
+children.push(SubItem("4.19.6", "Permitir a gestão de acidentes e doenças ocupacionais (investigação, registro e acompanhamento das ocorrências)."));
+
+children.push(Item("4.20", "Documentação Legal e Previdenciária"));
+children.push(SubItem("4.20.1", "Emissão e gestão do LTCAT (Laudo Técnico das Condições Ambientais do Trabalho)."));
+children.push(SubItem("4.20.2", "Emissão de Laudos de Insalubridade e Periculosidade."));
+children.push(SubItem("4.20.3", "Gestão de CIPA (Comissão Interna de Prevenção de Acidentes) e SIPAT, contemplando módulo de eleição online que gerencie todo o processo de forma automatizada — desde a inscrição e convocação até a votação eletrônica e geração da ata final — promovendo transparência, agilidade e engajamento dos servidores."));
+children.push(SubItem("4.20.4", "Gestão de brigada de incêndio e controle de extintores, com alertas automáticos para o vencimento de inspeções, recargas e validade do casco. A solução deve também permitir o gerenciamento de aparelhos de medição, com alertas de vencimento da calibração."));
+
+children.push(Item("4.21", "Gestão de Vacinação e Saúde"));
+children.push(SubItem("4.21.1", "Módulo específico para Controle de Vacinação, permitindo o registro de doses aplicadas, fabricantes e lotes."));
+children.push(SubItem("4.21.2", "Relatório de Imunizados por Período."));
+children.push(SubItem("4.21.3", "Relatório de Imunização Vencida/Pendente (alertas de doses de reforço)."));
+children.push(SubItem("4.21.4", "Campanhas de vacinação em massa."));
+
+children.push(Item("4.22", "Gestão de Absenteísmo e Doenças"));
+children.push(SubItem("4.22.1", "Controle de atestados médicos e afastamentos."));
+children.push(SubItem("4.22.2", "Relatórios detalhados de Absenteísmo (por CID, por setor, por período)."));
+children.push(SubItem("4.22.3", "Controle de afastamentos previdenciários (INSS/Regime Próprio)."));
+children.push(SubItem("4.22.4", "Relatórios de gestão de Doenças Crônicas Não Transmissíveis (rastreamento epidemiológico)."));
+children.push(SubItem("4.22.5", "Relatórios de PCD (Pessoas com Deficiência)."));
+
+children.push(H2("Dos Requisitos de Integração e Conectividade"));
+children.push(Item("4.23", "Padrão Tecnológico de Integrações: para todas as integrações deverá ser observado o padrão tecnológico de APIs RESTful com troca de mensagens em formato JSON, salvo justificativa técnica em sentido diverso aceita pela CONTRATANTE. Para cada integração, a CONTRATADA deverá fornecer documentação técnica completa contendo, no mínimo: especificação da API, dicionário de campos, formato dos dados, protocolo de autenticação, mecanismos de tratamento de erros e exemplos de chamadas. A CONTRATANTE disponibilizará ambiente de testes (sandbox) e documentação técnica dos sistemas legados durante a fase de implantação, de modo a viabilizar a homologação das integrações."));
+children.push(Item("4.24", "Integração com SIARHES (Sistema Integrado de Administração de Recursos Humanos do Estado): o sistema deve possuir integração com o SIARHES, permitindo, no mínimo: importação automática de dados cadastrais dos servidores (admissões, exonerações, aposentadorias, óbitos); sincronização periódica de informações funcionais (lotação, cargo, setor, função); atualização de afastamentos e licenças médicas. Os campos exatos a serem integrados serão definidos em conjunto com a CONTRATANTE durante a fase de planejamento, observado o escopo previsto neste Termo."));
+children.push(Item("4.25", "Rede Credenciada: o sistema deve possuir integração nativa com uma rede de clínicas credenciadas em todo o território nacional para realização de exames, permitindo o agendamento e o recebimento de resultados diretamente na plataforma."));
+children.push(Item("4.26", "eSocial (Governo Federal): o sistema deve gerar e transmitir, mediante mensageria própria, os eventos de SST para o eSocial, garantindo a validação das regras do layout vigente, incluindo, mas não se limitando a:"));
+children.push(SubItem("4.26.1", "S-2210 (Comunicação de Acidente de Trabalho);"));
+children.push(SubItem("4.26.2", "S-2220 (Monitoramento da Saúde do Trabalhador);"));
+children.push(SubItem("4.26.3", "S-2221 (Exame Toxicológico do Motorista Profissional);"));
+children.push(SubItem("4.26.4", "S-2240 (Condições Ambientais do Trabalho — Agentes Nocivos)."));
+children.push(SubItem("4.26.5", "Permitir a geração de Relatório de Inconsistências antes do envio dos dados ao ambiente do eSocial."));
+children.push(SubItem("4.26.6", "Ter opção para somente gerar o XML dos eventos de SST para serem enviados ao eSocial."));
+children.push(Item("4.27", "INSS: captura automática de dados de funcionários afastados e captura automática das variáveis de cálculo do FAP."));
+children.push(Item("4.28", "Integrações Futuras: durante a vigência do contrato, poderão ser requeridas pela CONTRATANTE outras integrações com sistemas atualmente utilizados ou que venham a ser implementados em sua gestão, incluindo, mas não se limitando a: SIADES (Sistema Integrado de Administração de Estoque), almoxarifado de EPIs e ALMOXARIFADO VIRTUAL ES (em desenvolvimento). Tais integrações serão executadas mediante consumo do Banco de Horas Técnicas previsto no item 4 da tabela do objeto, conforme estimativa de esforço prévia aprovada pela CONTRATANTE."));
+
+children.push(H2("Do Banco de Horas Técnicas"));
+children.push(Item("4.29", "O item de Banco de Horas Técnicas (item 4 da tabela do objeto) tem por finalidade atender a demandas de customizações evolutivas e integrações adicionais que venham a ser identificadas pela CONTRATANTE durante a vigência contratual e que extrapolem o escopo padrão da solução SaaS contratada."));
+children.push(Item("4.30", "O consumo do Banco de Horas será realizado sob demanda, mediante prévia abertura de Ordem de Serviço (OS) pela CONTRATANTE, contendo: (i) descrição da demanda; (ii) esforço estimado em horas técnicas pela CONTRATADA; (iii) cronograma proposto; e (iv) aprovação formal da CONTRATANTE antes do início da execução."));
+children.push(Item("4.31", "A CONTRATADA deverá apresentar mensalmente, junto ao Relatório de Acompanhamento de Execução do Contrato, demonstrativo do consumo de horas do Banco, com identificação das OS executadas, horas consumidas, saldo remanescente e entregas realizadas."));
+children.push(Item("4.32", "O quantitativo de 1.000 (mil) horas estimado tem caráter referencial e poderá não ser integralmente consumido durante a vigência contratual, hipótese em que não haverá pagamento pelo saldo não utilizado."));
+children.push(Item("4.33", "Não será admitido o uso do Banco de Horas para correções de defeitos da solução padrão (manutenção corretiva), atualizações decorrentes de alterações legais (já cobertas pela manutenção evolutiva) ou para o cumprimento das funcionalidades obrigatórias previstas neste Termo de Referência."));
+
+children.push(H2("Dos Requisitos de Suporte Técnico"));
+children.push(Item("4.34", "Central de Ajuda: o sistema deve possuir portal de ajuda (Help Desk) integrado para abertura e acompanhamento de chamados."));
+children.push(Item("4.35", "Base de Conhecimento: disponibilização de manuais on-line (em português) e vídeos tutoriais acessíveis dentro da própria plataforma."));
+children.push(Item("4.36", "NMSE (Níveis Mínimos de Serviço Exigidos): o fornecedor deve garantir tempos máximos de resposta e solução para incidentes, conforme tabela e critérios definidos no item 5.5 deste TR."));
+children.push(Item("4.37", "Backup: a CONTRATADA deverá executar rotinas automatizadas de backup, com a seguinte periodicidade mínima: backup incremental diário, backup completo semanal e retenção mínima de 12 (doze) meses. Os backups deverão ser georredundantes (armazenados em pelo menos duas regiões geográficas distintas dentro do território nacional) e testados periodicamente, no mínimo trimestralmente, mediante restauração em ambiente segregado, com emissão de relatório à CONTRATANTE. Será obrigatório, ainda, o fornecimento de cópia de backup mensal à CONTRATANTE em formato exportável."));
+
+children.push(H2("Dos Requisitos de Implantação e Treinamento"));
+children.push(Item("4.38", "A implantação deverá incluir a configuração, parametrização e disponibilização da solução para uso."));
+children.push(Item("4.39", "A implantação deverá incluir a migração de dados existentes em sistemas legados."));
+children.push(Item("4.40", "O Plano de Implantação e Treinamento dos Usuários deverá ser elaborado em conjunto com a Gerência de Saúde e Qualidade de Vida no Trabalho."));
+children.push(Item("4.41", "As turmas serão divididas conforme área de conhecimento, contendo as ementas mínimas relativas à Segurança do Trabalho, Saúde do Trabalho, Administrativo e Administradores da solução, sendo que para este último deverá possuir conteúdo voltado para configuração, parametrização e Gestão de Perfis de usuários e controle de acessos aos módulos do sistema."));
+children.push(Item("4.42", "O treinamento de cada um dos módulos da solução deverá abarcar a operacionalização de todos os recursos, e recursos de outros módulos que sejam necessários para a sua plena utilização."));
+children.push(Item("4.43", "A capacitação será realizada de maneira virtual, em plataforma disponibilizada pela CONTRATADA, e deverá ser gravada, de forma que possa ser utilizada na capacitação de demais servidores."));
+children.push(Item("4.44", "A CONTRATADA arcará com todas as despesas relativas a instrutores e demais técnicos próprios ou contratados envolvidos com as atividades do treinamento, bem como com todo o material técnico e de apoio e demais recursos necessários à realização dos treinamentos."));
+children.push(Item("4.45", "A abordagem deverá ser eminentemente prática, com fundamentos teóricos que ilustrem os conceitos e capacitem os participantes a empregar os recursos oferecidos pela solução."));
+children.push(Item("4.46", "Deverá ser disponibilizada cópia de todos os materiais (apostilas, vídeos e/ou material de apresentação), no formato eletrônico de arquivos do tipo PDF, que apoiem as abordagens e estratégias da respectiva capacitação obrigatoriamente na língua portuguesa do Brasil."));
+children.push(Item("4.47", "A CONTRATANTE reservar-se-á o direito de acompanhar e avaliar os treinamentos, sendo que no caso de não aceite a CONTRATADA deverá realizar novo treinamento sem custos, e com as adequações de conteúdo programático ou instrutor que se fizerem necessárias."));
+
+children.push(H2("Da Prova de Conceito (POC)"));
+children.push(Item("4.48", "Como critério de validação técnica e aceitação da proposta, será exigida a realização de Prova de Conceito (POC) pelo licitante classificado provisoriamente em primeiro lugar, com o objetivo de demonstrar a aderência da solução aos requisitos obrigatórios deste Termo de Referência."));
+children.push(Item("4.49", "A POC deverá ser iniciada em até 10 (dez) dias úteis após a convocação formal pela equipe de licitação, em local e forma a serem definidos pela CONTRATANTE (presencial nas dependências da SEGER ou remota)."));
+children.push(Item("4.50", "Roteiro mínimo da POC: durante a POC, o licitante deverá demonstrar, em ambiente de produção ou homologação, o funcionamento prático dos seguintes requisitos obrigatórios:"));
+children.push(SubItem("4.50.1", "Demonstração das principais funcionalidades de Gestão de Saúde Ocupacional (PCMSO/ASO) e Segurança do Trabalho (PGR/GRO);"));
+children.push(SubItem("4.50.2", "Demonstração da geração e envio de pelo menos um evento de SST do eSocial (S-2210, S-2220, S-2221 ou S-2240) em ambiente de homologação;"));
+children.push(SubItem("4.50.3", "Demonstração de geração de painel gerencial nativo (dashboard) e exposição de API documentada para extração de dados;"));
+children.push(SubItem("4.50.4", "Demonstração das funcionalidades de auditoria (log com estado anterior e posterior da informação modificada);"));
+children.push(SubItem("4.50.5", "Demonstração de mecanismo de coleta de evidência digital (assinatura biométrica) para entrega de EPI e treinamento;"));
+children.push(SubItem("4.50.6", "Demonstração do módulo de eleição online da CIPA;"));
+children.push(SubItem("4.50.7", "Demonstração da gestão de Plano de Ação vinculada ao PGR."));
+children.push(Item("4.51", "Critérios objetivos de aprovação: cada item do roteiro será avaliado pela Comissão Técnica designada pela CONTRATANTE como APROVADO ou REPROVADO, mediante registro em ata circunstanciada. Para ser considerado APROVADO, o licitante deverá atender de forma nativa (sem necessidade de desenvolvimento customizado) a, no mínimo, 90% (noventa por cento) dos itens do roteiro, sendo OBRIGATÓRIA a aprovação integral nos itens 4.50.1 e 4.50.2."));
+children.push(Item("4.52", "Desclassificação: o não cumprimento do agendamento, a falha na demonstração ou o não atingimento do percentual mínimo de aderência resultará na desclassificação da proposta e na convocação do próximo classificado, sem prejuízo das demais sanções legais."));
+
+children.push(H2("Da Subcontratação"));
+children.push(Item("4.53", "Não é admitida a subcontratação do objeto contratual, ressalvada a contratação de provedor de infraestrutura em nuvem (sub-operador de dados pessoais), conforme item 4.10.3 deste TR."));
+
+children.push(H2("Da Garantia de Execução"));
+children.push(Item("4.54", "A contratação conta com garantia da contratação, nos moldes do art. 96 da Lei nº 14.133/2021, em valor correspondente a 5% (cinco por cento) do valor inicial/total/anual do contrato."));
+children.push(Item("4.55", "O contratado apresentará, no prazo máximo de 10 (dez) dias, prorrogáveis por igual período, a critério do contratante, contado da vigência do contrato, comprovante de prestação de garantia, quando optar por caução em dinheiro ou títulos da dívida pública ou, ainda, pela fiança bancária, em valor correspondente a 5% (cinco por cento) do valor inicial/total/anual do contrato."));
+children.push(Item("4.56", "Em caso de opção pelo seguro-garantia, a parte adjudicatária deverá apresentá-la, no máximo, até a data de assinatura do contrato."));
+children.push(Item("4.57", "Caso utilizada a modalidade de seguro-garantia, a apólice deverá ter validade durante a vigência do contrato e por 30 (trinta) dias após o término da vigência contratual, permanecendo em vigor mesmo que o contratado não pague o prêmio nas datas convencionadas."));
+children.push(Item("4.58", "A apólice do seguro-garantia deverá acompanhar as modificações referentes à vigência do contrato principal mediante a emissão do respectivo endosso pela seguradora."));
+children.push(Item("4.59", "Será permitida a substituição da apólice de seguro-garantia na data de renovação ou de aniversário, desde que mantidas as condições e coberturas da apólice vigente e nenhum período fique descoberto."));
+children.push(Item("4.60", "Na hipótese de suspensão do contrato por ordem ou inadimplemento da Administração, o contratado ficará desobrigado de renovar a garantia ou de endossar a apólice de seguro até a ordem de reinício da execução ou o adimplemento pela Administração."));
+children.push(Item("4.61", "A garantia assegurará, qualquer que seja a modalidade escolhida, o pagamento de:"));
+children.push(SubItem("(a)", "prejuízos advindos do não cumprimento do objeto do contrato e do não adimplemento das demais obrigações nele previstas;"));
+children.push(SubItem("(b)", "multas moratórias e punitivas aplicadas pela Administração à contratada; e"));
+children.push(SubItem("(c)", "obrigações trabalhistas e previdenciárias de qualquer natureza e para com o FGTS, não adimplidas pelo contratado, quando couber."));
+children.push(Item("4.62", "A modalidade seguro-garantia somente será aceita se contemplar todos os eventos indicados no item acima, observada a legislação que rege a matéria."));
+children.push(Item("4.63", "A garantia em dinheiro deverá ser efetuada em favor do contratante, em conta específica, aberta pela contratante, com correção monetária."));
+children.push(Item("4.64", "Caso a opção seja por utilizar títulos da dívida pública, estes devem ter sido emitidos sob a forma escritural, mediante registro em sistema centralizado de liquidação e de custódia autorizado pelo Banco Central do Brasil, e avaliados pelos seus valores econômicos, conforme definido pelo Ministério da Economia."));
+children.push(Item("4.65", "No caso de garantia na modalidade de fiança bancária, deverá ser emitida por banco ou instituição financeira devidamente autorizada a operar no País pelo Banco Central do Brasil, e deverá constar expressa renúncia do fiador aos benefícios do artigo 827 do Código Civil."));
+children.push(Item("4.66", "No caso de alteração do valor do contrato, ou prorrogação de sua vigência, a garantia deverá ser ajustada ou renovada, seguindo os mesmos parâmetros utilizados quando da contratação."));
+children.push(Item("4.67", "Se o valor da garantia for utilizado total ou parcialmente em pagamento de qualquer obrigação, o Contratado obriga-se a fazer a respectiva reposição no prazo máximo de 10 (dez) dias úteis, contados da data em que for notificado."));
+children.push(Item("4.68", "O Contratante executará a garantia na forma prevista na legislação que rege a matéria."));
+children.push(SubItem("4.68.1", "O emitente da garantia ofertada pelo contratado deverá ser notificado pelo contratante quanto ao início de processo administrativo para apuração de descumprimento de cláusulas contratuais (art. 137, § 4º, da Lei nº 14.133/2021)."));
+children.push(SubItem("4.68.2", "Caso se trate da modalidade seguro-garantia, ocorrido o sinistro durante a vigência da apólice, sua caracterização e comunicação poderão ocorrer fora desta vigência, não caracterizando fato que justifique a negativa do sinistro, desde que respeitados os prazos prescricionais aplicados ao contrato de seguro, nos termos do art. 20 da Circular Susep nº 662, de 11 de abril de 2022."));
+children.push(Item("4.69", "Extinguir-se-á a garantia com a restituição da apólice, carta fiança ou autorização para a liberação de importâncias depositadas em dinheiro a título de garantia, acompanhada de declaração do contratante, mediante termo circunstanciado, de que o contratado cumpriu todas as cláusulas do contrato."));
+children.push(Item("4.70", "A garantia somente será liberada ou restituída após a fiel execução do contrato ou após a sua extinção por culpa exclusiva da Administração e, quando em dinheiro, será atualizada monetariamente."));
+children.push(Item("4.71", "O garantidor não é parte para figurar em processo administrativo instaurado pelo contratante com o objetivo de apurar prejuízos e/ou aplicar sanções à contratada."));
+children.push(SubItem("4.71.1", "O contratado autoriza o contratante a reter, a qualquer tempo, a garantia, na forma prevista neste Contrato."));
+
+// 5. MODELO DE EXECUÇÃO
+children.push(H1("5 - MODELO DE EXECUÇÃO DO OBJETO"));
+children.push(H2("Condições de execução"));
+children.push(Item("5.1", "A execução do objeto contratual pautar-se-á pela entrega de solução tecnológica na modalidade Software as a Service (SaaS), devendo observar rigorosamente os parâmetros de qualidade, tempestividade e segurança estabelecidos neste Termo de Referência."));
+children.push(Item("5.2", "A prestação dos serviços será dividida nas fases e rotinas descritas a seguir."));
+
+children.push(H2("Fase de Implantação"));
+children.push(Item("5.3", "O início da execução contratual dar-se-á imediatamente após a assinatura do contrato e emissão da Ordem de Serviço ou instrumento equivalente, compreendendo as seguintes etapas:"));
+children.push(SubItem("5.3.1", "Reunião de Alinhamento (Kick-off): em até 05 (cinco) dias úteis após a formalização do início, as partes realizarão reunião técnica para definição do cronograma detalhado de implantação, parametrização e cadastro dos usuários administradores."));
+children.push(SubItem("5.3.2", "Parametrização e Configuração: a CONTRATADA deverá realizar a configuração inicial do ambiente (estruturas organizacionais, perfis de acesso, parametrização de exames e riscos) conforme as especificidades da CONTRATANTE."));
+children.push(SubItem("5.3.3", "Migração de Dados (se aplicável): a CONTRATADA prestará o apoio técnico necessário para a importação de dados legados, caso existam e sejam disponibilizados em formatos compatíveis (.csv, .xls, .xml), assegurando a integridade das informações históricas."));
+children.push(SubItem("5.3.4", "Capacitação Inicial: deverá ser ministrado treinamento aos usuários-chave (administradores do sistema e equipe de SST) para operação plena das funcionalidades, podendo ocorrer na modalidade de ensino a distância (EAD) ou videoconferência, desde que com interação em tempo real."));
+
+children.push(H2("Rotinas de Operação e Disponibilidade"));
+children.push(Item("5.4", "Concluída a fase de implantação, o serviço entrará em regime de operação assistida e contínua, devendo obedecer aos seguintes critérios:"));
+children.push(SubItem("5.4.1", "Disponibilidade Mensal: a solução deverá apresentar índice de disponibilidade mínima de 99,5% (noventa e nove vírgula cinco por cento) ao mês, apurado em regime 24x7 (vinte e quatro horas por dia, sete dias por semana). A apuração considerará todo período em que a solução estiver inacessível, indisponível ou apresentar degradação severa de desempenho que impeça a operação normal."));
+children.push(SubItem("5.4.2", "Janelas de Manutenção: as manutenções preventivas ou atualizações de versão que impliquem indisponibilidade temporária deverão ser programadas e comunicadas à CONTRATANTE com antecedência mínima de 48 (quarenta e oito) horas, devendo ocorrer preferencialmente em horários de baixo tráfego (finais de semana ou período noturno). Manutenções programadas e devidamente comunicadas não serão computadas para efeito de indisponibilidade."));
+children.push(SubItem("5.4.3", "Atualizações Tecnológicas e Legais: a CONTRATADA obriga-se a manter o software atualizado frente às alterações na legislação previdenciária e trabalhista (ex.: mudanças nas NRs, layouts do eSocial), implementando as adequações nos prazos legais, sem custos adicionais para a CONTRATANTE."));
+children.push(SubItem("5.4.4", "Plano de Continuidade e Recuperação de Desastres: a CONTRATADA deverá implementar e manter plano de continuidade de negócios e recuperação de desastres (Disaster Recovery), com os seguintes parâmetros mínimos:"));
+children.push(Bullet("RTO (Recovery Time Objective): tempo máximo de até 4 (quatro) horas para restabelecimento da solução em caso de desastre;", 1080));
+children.push(Bullet("RPO (Recovery Point Objective): perda máxima de dados de até 1 (uma) hora.", 1080));
+children.push(SubItem("5.4.5", "A CONTRATADA deverá realizar, no mínimo anualmente, teste documentado do plano de Disaster Recovery, encaminhando à CONTRATANTE relatório com os resultados, evidências e eventuais planos de ação corretiva."));
+
+children.push(H2("Níveis Mínimos de Serviço Exigidos (NMSE) e Suporte Técnico"));
+children.push(Item("5.5", "O atendimento às solicitações de suporte técnico e correção de falhas observará a classificação de severidade e os prazos máximos estipulados na tabela abaixo:"));
+children.push(Empty());
+children.push(slaTable);
+children.push(Empty());
+
+children.push(Item("5.6", "Disposições sobre o Suporte:"));
+children.push(SubItem("5.6.1", "Os prazos de atendimento serão contabilizados a partir da abertura do chamado na plataforma de Help Desk da CONTRATADA."));
+children.push(SubItem("5.6.2", "Considera-se 'Tempo de Resposta' o intervalo entre a abertura do chamado e o primeiro contato qualificado de um técnico, indicando o início da tratativa."));
+children.push(SubItem("5.6.3", "Considera-se 'Tempo de Solução' o momento em que o serviço é restabelecido ou a dúvida é sanada."));
+children.push(SubItem("5.6.4", "Horas Corridas: contabilizadas ininterruptamente, incluindo sábados, domingos e feriados (regime 24x7), aplicável apenas para severidade CRÍTICA. A exigência de regime 24x7 para severidade Crítica fundamenta-se no fato de que a indisponibilidade total da solução pode comprometer obrigações legais com prazo fatal (envio de eventos do eSocial; emissão de CAT em até 1 dia útil após o acidente, conforme art. 22 da Lei nº 8.213/91), gerando passivos financeiros e sanções à Administração que superam significativamente o custo adicional do plantão técnico."));
+children.push(SubItem("5.6.5", "Horas Úteis: contabilizadas dentro do horário comercial padrão da CONTRATANTE (segunda a sexta-feira, das 08:00 às 18:00, exceto feriados nacionais e estaduais)."));
+children.push(SubItem("5.6.6", "Solução de Contorno: medida provisória que restaura a operação do sistema, reduzindo a severidade do incidente, enquanto a solução definitiva é desenvolvida."));
+
+children.push(H2("Glosas por Descumprimento dos Indicadores de Disponibilidade"));
+children.push(Item("5.7", "O descumprimento do indicador mensal de disponibilidade (item 5.4.1) implicará na aplicação de glosas progressivas sobre o valor da fatura mensal referente ao serviço de Cessão de Uso, conforme tabela abaixo:"));
+children.push(Empty());
+children.push(glosaDispTable);
+children.push(Empty());
+
+children.push(H2("Glosas por Descumprimento dos Prazos de Atendimento (NMSE)"));
+children.push(Item("5.8", "O descumprimento dos prazos de Resposta Inicial ou de Solução Definitiva implicará a aplicação de glosa sobre o valor mensal da Cessão de Uso, conforme tabela abaixo, apurada por chamado descumprido:"));
+children.push(Empty());
+children.push(glosaChamadoTable);
+children.push(Empty());
+children.push(Item("5.9", "A glosa total mensal por descumprimento de prazos de atendimento limitar-se-á a 20% (vinte por cento) do valor mensal da Cessão de Uso, sem prejuízo de aplicação cumulativa da glosa por descumprimento do indicador de disponibilidade e das demais sanções administrativas previstas em contrato."));
+children.push(Item("5.10", "A CONTRATADA poderá apresentar justificativa formal, no Relatório Mensal de Acompanhamento, para chamados em que os prazos foram descumpridos, ficando a aceitação ou rejeição da justificativa a critério motivado da fiscalização."));
+
+children.push(H2("Gestão e Fiscalização do Contrato"));
+children.push(Item("5.11", "A fiscalização da execução contratual será exercida por representante da CONTRATANTE, ao qual competirá:"));
+children.push(SubItem("5.11.1", "Monitoramento: acompanhar o desempenho da solução através dos painéis de controle e relatórios de auditoria (logs)."));
+children.push(SubItem("5.11.2", "Verificação de NMSE: aferir mensalmente o cumprimento dos níveis de serviço e disponibilidade, aplicando as glosas previstas nos itens 5.7 a 5.10 e as sanções previstas no item 11 deste TR."));
+children.push(SubItem("5.11.3", "Aceite Mensal: emitir o Termo de Recebimento Provisório e Definitivo dos serviços mensais, atestando a regularidade da execução para fins de faturamento."));
+children.push(SubItem("5.11.4", "Sigilo e Segurança: fiscalizar o cumprimento das normas de segurança da informação e proteção de dados (LGPD), podendo solicitar relatórios de incidentes de segurança a qualquer tempo."));
+
+children.push(H2("Encerramento e Transição Contratual"));
+children.push(Item("5.12", "Ao término da vigência contratual, por qualquer motivo, a CONTRATADA obriga-se a:"));
+children.push(SubItem("5.12.1", "Manter o sistema acessível para consulta e extração de dados pelo prazo adicional de 60 (sessenta) dias, garantindo a transição segura para novo fornecedor ou internalização dos serviços."));
+children.push(SubItem("5.12.2", "Fornecer a base de dados completa da CONTRATANTE em formato estruturado e aberto (ex.: JSON, XML, CSV, SQL ou PARQUET), garantindo a portabilidade das informações de saúde e segurança, sob pena de retenção de pagamentos finais e sanções administrativas."));
+children.push(SubItem("5.12.3", "Entregar, juntamente com os dados, documentação técnica detalhada que viabilize a migração para outra solução, contendo, no mínimo:"));
+children.push(Bullet("Dicionário de dados completo, com a descrição semântica de cada tabela, coluna, tipo de dado, restrições e relacionamentos;", 1440));
+children.push(Bullet("Modelo Entidade-Relacionamento (ER) ou equivalente, em formato editável e em formato de imagem (PDF/PNG);", 1440));
+children.push(Bullet("Documentação das regras de negócio configuradas para a CONTRATANTE (parametrizações, fluxos, perfis de acesso, integrações ativas);", 1440));
+children.push(Bullet("Cópias dos arquivos binários armazenados no sistema (anexos, documentos digitalizados, imagens, laudos), preservando metadados de origem (autor, data, vinculação ao registro principal);", 1440));
+children.push(Bullet("Relatório de inventário dos dados entregues (volumes, períodos, integridade), assinado pelo responsável técnico da CONTRATADA.", 1440));
+children.push(SubItem("5.12.4", "Apoiar tecnicamente a CONTRATANTE ou a nova prestadora de serviços, durante o período de transição, esclarecendo dúvidas técnicas relativas aos dados, modelo de dados e regras de negócio configuradas, sem ônus adicional."));
+children.push(SubItem("5.12.5", "Caso a Administração opte por internalizar a solução no futuro, a CONTRATADA deverá realizar a transição técnica necessária sem custo adicional para a Administração Pública."));
+children.push(SubItem("5.12.6", "Destruir de forma segura as cópias remanescentes dos dados após a confirmação do recebimento pela CONTRATANTE, emitindo o respectivo certificado de exclusão de dados, ressalvadas as hipóteses legais de retenção."));
+
+children.push(H2("Especificação da garantia do serviço (art. 40, §1º, inciso III, da Lei nº 14.133/2021)"));
+children.push(Item("5.13", "O prazo de garantia contratual dos serviços será de, no mínimo, 6 (seis) meses, contado a partir do primeiro dia útil subsequente à data do recebimento definitivo do objeto."));
+
+// 6. MODELO DE GESTÃO
+children.push(H1("6 - MODELO DE GESTÃO DO CONTRATO"));
+children.push(Item("6.1", "O contrato deverá ser executado fielmente pelas partes, de acordo com as cláusulas avençadas e as normas da Lei nº 14.133/2021, e cada parte responderá pelas consequências de sua inexecução total ou parcial."));
+children.push(Item("6.2", "As comunicações entre o órgão ou entidade e a contratada devem ser realizadas por escrito sempre que o ato exigir tal formalidade, admitindo-se o uso de mensagem eletrônica para esse fim."));
+children.push(Item("6.3", "O órgão ou entidade poderá convocar representante da empresa para adoção de providências que devam ser cumpridas de imediato."));
+children.push(Item("6.4", "Após a assinatura do contrato ou instrumento equivalente, o órgão ou entidade poderá convocar o representante da empresa contratada para reunião inicial para apresentação do plano de fiscalização, que conterá informações acerca das obrigações contratuais, dos mecanismos de fiscalização, das estratégias para execução do objeto, do plano complementar de execução da contratada (quando houver), do método de aferição dos resultados e das sanções aplicáveis, dentre outros."));
+children.push(Item("6.5", "A execução do contrato deverá ser acompanhada e fiscalizada pelo(s) gestor(es) e fiscal(is) do contrato, ou pelos respectivos substitutos, na forma do Decreto Estadual nº 5.545-R/2021 e demais condições previstas para a contratação."));
+children.push(Item("6.6", "O fiscal da contratação anotará todas as ocorrências relacionadas à execução do contrato, com a descrição do que for necessário para a regularização das faltas ou dos defeitos observados."));
+children.push(Item("6.7", "Identificada qualquer inexatidão ou irregularidade, o gestor da contratação emitirá notificações para a correção da execução, determinando prazo."));
+children.push(Item("6.8", "A contratada deverá disponibilizar os seguintes canais de comunicação: e-mail para comunicações formais; telefone para comunicações urgentes; sistema de abertura e acompanhamento de chamados técnicos."));
+
+// 7. CRITÉRIOS DE MEDIÇÃO E PAGAMENTO
+children.push(H1("7 - CRITÉRIOS DE MEDIÇÃO E DE PAGAMENTO"));
+children.push(H2("Do Recebimento"));
+children.push(Item("7.1", "Os serviços serão recebidos provisoriamente, de forma sumária, no ato da entrega, juntamente com a nota fiscal ou instrumento de cobrança equivalente, pelo fiscal ou comissão designada, consignando em relatório informações sobre a simples conferência da conformidade do que foi contratado, em especial do quantitativo e demais informações constantes na nota fiscal."));
+children.push(Item("7.2", "Os serviços poderão ser rejeitados, no todo ou em parte, inclusive antes do recebimento provisório, quando em desacordo com as especificações constantes no Termo de Referência e na proposta, devendo ser substituídos no prazo de 20 (vinte) dias, a contar da notificação por escrito da contratada, às suas custas, sem prejuízo da aplicação das penalidades."));
+children.push(SubItem("7.2.1", "Caso haja irregularidades que impeçam o recebimento provisório, o fiscal, conforme o caso, deverá solicitar ao contratado, por escrito, as respectivas correções."));
+children.push(SubItem("7.2.2", "Após o recebimento provisório, o fiscal deverá manifestar-se sobre o cumprimento das exigências de caráter técnico da conformidade do material recebido com as exigências contratuais, visando subsidiar o gestor do contrato no recebimento definitivo, no prazo de 10 (dez) dias."));
+children.push(Item("7.3", "O recebimento definitivo ocorrerá no prazo de 15 (quinze) dias, a contar da manifestação do fiscal prevista no item 7.2.2, após a verificação da qualidade e quantidade do material e consequente aceitação mediante termo detalhado."));
+children.push(SubItem("7.3.1", "Caso haja irregularidades que impeçam o recebimento definitivo, o gestor, conforme o caso, deverá solicitar ao contratado, por escrito, as respectivas correções no prazo de 5 (cinco) dias."));
+children.push(Item("7.4", "O prazo para recebimento definitivo poderá ser excepcionalmente prorrogado, de forma justificada, por igual período, quando houver necessidade de diligências para a aferição do atendimento das exigências contratuais."));
+children.push(Item("7.5", "No caso de controvérsia sobre a execução do objeto, quanto à dimensão, qualidade e quantidade, deverá ser observado o teor do art. 143 da Lei nº 14.133/2021, comunicando-se à empresa para emissão de Nota Fiscal no que pertine à parcela incontroversa da execução do objeto, para efeito de liquidação e pagamento."));
+children.push(Item("7.6", "O prazo para a solução, pelo contratado, de inconsistências na execução do objeto ou de saneamento da nota fiscal ou de instrumento de cobrança equivalente, verificadas pela Administração durante a análise prévia à liquidação de despesa, não será computado para os fins do recebimento definitivo."));
+children.push(Item("7.7", "O recebimento provisório ou definitivo não excluirá a responsabilidade civil pela solidez e pela segurança dos serviços nem a responsabilidade ético-profissional pela perfeita execução do contrato."));
+children.push(Item("7.8", "O recebimento provisório poderá ser dispensado nos casos em que a fiscalização consiga emitir sumariamente o termo de recebimento definitivo pela simplicidade ou quantidade recebida do objeto."));
+
+children.push(H2("Nota Fiscal"));
+children.push(Item("7.9", "Para fins de exame da Nota Fiscal, o fiscal deverá verificar se a nota fiscal ou instrumento de cobrança equivalente apresentado expressa os elementos necessários e essenciais do documento, tais como: prazo de validade, data da emissão, dados do contrato e do órgão contratante, período respectivo de execução do contrato, valor a pagar e eventual destaque do valor de retenções tributárias cabíveis."));
+children.push(Item("7.10", "Havendo erro na apresentação da nota fiscal ou instrumento de cobrança equivalente, ou circunstância que impeça a liquidação da despesa, esta ficará sobrestada até que o contratado providencie as medidas saneadoras, reiniciando-se o prazo após a comprovação da regularização da situação, sem ônus ao contratante."));
+children.push(Item("7.11", "A nota fiscal ou instrumento de cobrança equivalente deverá ser obrigatoriamente acompanhado da comprovação da regularidade fiscal."));
+children.push(Item("7.12", "O Contratado deverá apresentar nota fiscal/fatura que registre o valor dos bens/serviços, o valor líquido da nota e o valor dos impostos sujeitos a retenção na fonte, inclusive o ISSQN (quando for o caso) e o destaque do Imposto de Renda na Fonte (conforme disposto na IN/RFB 1.234/2012, ou a que vier a substituí-la, e no Decreto Estadual 5.460-R/2023), os quais serão retidos e recolhidos diretamente pela Administração contratante."));
+
+children.push(H2("Do Prazo de Pagamento"));
+children.push(Item("7.13", "O pagamento será efetuado no prazo máximo de até 10 (dez) dias úteis, contados do recebimento da nota fiscal, nos termos do art. 31 do Decreto Estadual nº 5545-R/2023."));
+children.push(Item("7.14", "Ao enviar a solicitação de pagamento, o gestor do contrato deve especificar a data de vencimento da obrigação."));
+children.push(Item("7.15", "Decorrido o prazo indicado no item anterior, incidirá multa financeira nos seguintes termos: VM = VF × (12/100) × (ND/360), onde VM = Valor da Multa Financeira; VF = Valor da Nota Fiscal referente ao mês em atraso; ND = Número de dias em atraso."));
+children.push(Item("7.16", "Incumbirão à Contratada a iniciativa e o encargo do cálculo minucioso da fatura devida, a ser revisto e aprovado pela Contratante, juntando-se o cálculo da fatura."));
+children.push(Item("7.17", "A liquidação das despesas obedecerá rigorosamente ao estabelecido na Lei 4.320/1964, assim como na Lei Estadual 2.583/1971."));
+children.push(Item("7.18", "Se houver alguma incorreção na Nota Fiscal/Fatura, a mesma será devolvida à Contratada para correção, ficando estabelecido que o prazo para pagamento será contado a partir da data de apresentação da nova Nota Fiscal/Fatura, sem qualquer ônus ou correção a ser paga pela Contratante."));
+
+children.push(H2("Da Forma de Pagamento"));
+children.push(Item("7.19", "O pagamento será realizado por meio de ordem bancária, para crédito em banco, agência e conta corrente indicados pelo contratado."));
+children.push(Item("7.20", "Será considerada data do pagamento o dia em que constar como emitida a ordem bancária para pagamento."));
+children.push(Item("7.21", "Quando do pagamento, será efetuada a retenção tributária prevista na legislação aplicável."));
+children.push(Item("7.22", "Independentemente do percentual de tributo inserido na planilha, quando houver, serão retidos na fonte, quando da realização do pagamento, os percentuais estabelecidos na legislação vigente."));
+children.push(Item("7.23", "O contratado regularmente optante pelo Simples Nacional, nos termos da Lei Complementar nº 123/2006, não sofrerá a retenção tributária quanto aos impostos e contribuições abrangidos por aquele regime. No entanto, o pagamento ficará condicionado à apresentação de comprovação, por meio de documento oficial, de que faz jus ao tratamento tributário favorecido previsto na referida Lei Complementar."));
+
+// 8. SELEÇÃO E HABILITAÇÃO
+children.push(H1("8 - FORMA E CRITÉRIOS DE SELEÇÃO DO FORNECEDOR E FORMA DE FORNECIMENTO"));
+children.push(H2("Forma de Seleção e Critério de Julgamento da Proposta"));
+children.push(Item("8.1", "O fornecedor será selecionado por meio da realização de procedimento de Licitação, na modalidade Pregão, sob a forma Eletrônica, com adoção do critério de julgamento pelo menor preço."));
+children.push(Item("8.2", "A justificativa para adoção do referido critério se dá visto que o objeto do presente Termo de Referência possui especificações técnicas claras e objetivas, não havendo necessidade de avaliação subjetiva de qualidade ou desempenho. Assim, a escolha do critério menor preço assegura a seleção da proposta mais vantajosa para a Administração Pública, atendendo aos princípios da economicidade, isonomia e eficiência previstos na Lei nº 14.133/2021."));
+
+children.push(H2("Da Forma de Fornecimento"));
+children.push(Item("8.3", "O fornecimento do objeto será continuado."));
+children.push(Item("8.4", "A justificativa para adoção da referida forma se dá pela natureza permanente e essencial dos serviços de Segurança e Saúde no Trabalho (SST), que exigem disponibilidade ininterrupta do sistema para registro, controle e monitoramento das informações. A prestação contínua garante a integridade dos dados, o cumprimento tempestivo de obrigações legais, especialmente aquelas relacionadas ao eSocial e às Normas Regulamentadoras, bem como assegura a eficiência e a economicidade na gestão pública, evitando prejuízos operacionais decorrentes de descontinuidade do serviço."));
+
+children.push(H2("Das Exigências de Habilitação"));
+children.push(Item("8.5", "JUSTIFICATIVA DOS REQUISITOS DA QUALIFICAÇÃO TÉCNICA E DOS REQUISITOS DE QUALIFICAÇÃO ECONÔMICO-FINANCEIRA"));
+children.push(SubItem("8.5.1", "Qualificação Técnica"));
+children.push(new Paragraph({
+  spacing: { after: 120, line: 300 }, alignment: AlignmentType.JUSTIFIED, indent: { left: 720 },
+  children: [new TextRun({ text: "Os requisitos de habilitação técnica são indispensáveis para assegurar que a licitante possua experiência comprovada na implantação e manutenção de sistemas informatizados de Segurança e Saúde no Trabalho (SST), compatíveis em características, complexidade e volume com o objeto ora licitado. A exigência de atestados de capacidade técnica e declarações de ciência das condições locais visa garantir que o contratado tenha pleno domínio das especificidades do serviço, reduzindo riscos de falhas operacionais, prejuízos à Administração e descumprimento de obrigações legais, em especial as vinculadas ao eSocial e às Normas Regulamentadoras do Ministério do Trabalho e Emprego.", size: 22 })]
+}));
+children.push(SubItem("8.5.2", "Qualificação Econômico-Financeira"));
+children.push(new Paragraph({
+  spacing: { after: 120, line: 300 }, alignment: AlignmentType.JUSTIFIED, indent: { left: 720 },
+  children: [new TextRun({ text: "A verificação da capacidade econômico-financeira da licitante tem como objetivo assegurar que a futura contratada possua condições patrimoniais e de liquidez suficientes para executar o contrato de forma contínua e regular durante toda a vigência, sem risco de paralisação do serviço por dificuldades financeiras. A exigência de índices de liquidez (geral, corrente) e de solvência geral superiores a 1, ou, alternativamente, a demonstração de patrimônio líquido mínimo equivalente a 10% do valor estimado da contratação, encontra respaldo na Lei 14.133/2021 e na Portaria TCU nº 121/2023. A apresentação de balanço patrimonial e demonstração de resultado dos dois últimos exercícios sociais é necessária para avaliar a saúde financeira da licitante.", size: 22 })]
+}));
+
+// 9. ESTIMATIVAS
+children.push(H1("9 - ESTIMATIVAS DO VALOR DA CONTRATAÇÃO"));
+children.push(Item("9.1", "O custo estimado total da contratação é de R$ __________ (___________________________________) [a preencher], conforme custos unitários apostos na tabela do item 1.1 ou no Apêndice ___ [a preencher] deste Termo."));
+
+// 10. ADEQUAÇÃO ORÇAMENTÁRIA
+children.push(H1("10 - ADEQUAÇÃO ORÇAMENTÁRIA"));
+children.push(Item("10.1", "As despesas decorrentes da presente contratação correrão à conta de recursos específicos consignados no Orçamento."));
+children.push(Item("10.2", "A contratação será atendida pela seguinte dotação:"));
+children.push(SubItem("(a)", "Gestão/Unidade: __________ [a preencher];"));
+children.push(SubItem("(b)", "Fonte de Recursos: __________ [a preencher];"));
+children.push(SubItem("(c)", "Programa de Trabalho: __________ [a preencher];"));
+children.push(SubItem("(d)", "Elemento de Despesa: __________ [a preencher];"));
+children.push(SubItem("(e)", "Plano Interno: __________ [a preencher]."));
+children.push(Item("10.3", "A dotação relativa aos exercícios financeiros subsequentes será indicada após aprovação da Lei Orçamentária respectiva e liberação dos créditos correspondentes, mediante apostilamento."));
+
+// 11. SANÇÕES
+children.push(H1("11 - DAS SANÇÕES ADMINISTRATIVAS"));
+children.push(Item("11.1", "Comete infração administrativa, nos termos da Lei 14.133/2021, o contratado que:"));
+children.push(SubItem("11.1.1", "der causa à inexecução parcial do contrato ou instrumento equivalente;"));
+children.push(SubItem("11.1.2", "der causa à inexecução parcial do contrato ou instrumento equivalente que cause grave dano à Administração ou ao funcionamento dos serviços públicos ou ao interesse coletivo;"));
+children.push(SubItem("11.1.3", "der causa à inexecução total do contrato ou instrumento equivalente;"));
+children.push(SubItem("11.1.4", "ensejar o retardamento da execução ou da entrega do objeto da contratação sem motivo justificado;"));
+children.push(SubItem("11.1.5", "apresentar documentação falsa ou prestar declaração falsa durante a execução do contrato ou instrumento equivalente;"));
+children.push(SubItem("11.1.6", "praticar ato fraudulento na execução do contrato ou instrumento equivalente;"));
+children.push(SubItem("11.1.7", "comportar-se de modo inidôneo ou cometer fraude de qualquer natureza;"));
+children.push(SubItem("11.1.8", "praticar ato lesivo previsto no art. 5º da Lei 12.846/2013."));
+children.push(Item("11.2", "Serão aplicadas ao contratado que incorrer nas infrações acima descritas as seguintes sanções:"));
+children.push(SubItem("11.2.1", "Advertência, quando o contratado der causa à inexecução parcial do contrato ou instrumento equivalente, sempre que não se justificar a imposição de penalidade mais grave (art. 156, § 2º, da Lei 14.133/2021);"));
+children.push(SubItem("11.2.2", "Impedimento de licitar e contratar, quando praticadas as condutas descritas nas alíneas 'b', 'c' e 'd' do subitem acima, sempre que não se justificar a imposição de penalidade mais grave (art. 156, § 4º, da Lei 14.133/2021);"));
+children.push(SubItem("11.2.3", "Declaração de inidoneidade para licitar e contratar, quando praticadas as condutas descritas nas alíneas 'e', 'f', 'g' e 'h' do subitem acima, bem como nas alíneas 'b', 'c' e 'd', que justifiquem a imposição de penalidade mais grave (art. 156, § 5º, da Lei 14.133/2021);"));
+children.push(SubItem("11.2.4", "Multas (art. 156, II, e § 3º, da Lei 14.133/2021), observados os seguintes parâmetros:"));
+children.push(SubItem("11.2.5", "Multa moratória de 0,5% (cinco décimos por cento) por dia útil de atraso injustificado sobre o valor da parcela inadimplida, até o limite de 30 (trinta) dias;"));
+children.push(SubItem("11.2.6", "Multa compensatória de 0,5% (cinco décimos por cento) a 2% (dois por cento) incidente sobre o valor do contrato ou instrumento equivalente, para a infração descrita na alínea 'a' do subitem 11.1;"));
+children.push(SubItem("11.2.7", "Multa compensatória de 0,5% (cinco décimos por cento) a 20% (vinte por cento) incidente sobre o valor do contrato ou instrumento equivalente, para as infrações descritas nas alíneas 'b' a 'h' do subitem 11.1."));
+children.push(Item("11.3", "As glosas previstas nos itens 5.7 a 5.10 (descumprimento de NMSE e de disponibilidade) têm natureza compensatória própria e poderão ser aplicadas cumulativamente com as multas previstas neste capítulo, observado o limite global de 30% (trinta por cento) sobre o valor total do contrato em caso de reincidência."));
+children.push(Item("11.4", "O atraso superior a 30 (trinta) dias autoriza a Administração a promover a extinção unilateral do contrato ou instrumento equivalente por descumprimento ou cumprimento irregular, convertendo a multa moratória em multa compensatória (art. 162, parágrafo único, da Lei 14.133/2021)."));
+children.push(Item("11.5", "Em caso de reincidência, o valor total das multas aplicadas não poderá exceder o limite de 30% (trinta por cento) sobre o valor total do Contrato ou instrumento equivalente."));
+children.push(Item("11.6", "A aplicação das sanções previstas neste Contrato ou instrumento equivalente não exclui, em hipótese alguma, a obrigação de reparação integral do dano causado ao Contratante (art. 156, § 9º, da Lei 14.133/2021)."));
+children.push(Item("11.7", "A penalidade de multa pode ser aplicada cumulativamente com as demais sanções, na forma do art. 156, § 7º, da Lei nº 14.133/2021."));
+children.push(Item("11.8", "Na aplicação das sanções serão considerados (art. 156, § 1º, da Lei 14.133/2021): a natureza e a gravidade da infração cometida; as peculiaridades do caso concreto; as circunstâncias agravantes ou atenuantes; os danos que dela provierem para o Contratante; a implantação ou o aperfeiçoamento de programa de integridade, conforme normas e orientações dos órgãos de controle."));
+children.push(Item("11.9", "Antes da aplicação da multa será facultada a defesa do interessado no prazo de 15 (quinze) dias úteis, contado da data de sua intimação (art. 157 da Lei 14.133/2021)."));
+children.push(Item("11.10", "A aplicação das sanções realizar-se-á em processo administrativo que assegure o contraditório e a ampla defesa ao Contratado, observando-se o procedimento previsto no caput e parágrafos do art. 158 da Lei 14.133/2021 para as penalidades de impedimento de licitar e contratar e de declaração de inidoneidade para licitar ou contratar, assim como as seguintes regras:"));
+children.push(SubItem("11.10.1", "Antes da aplicação de qualquer sanção administrativa, a Administração deverá notificar o contratado, facultando-lhe a apresentação de defesa prévia;"));
+children.push(SubItem("11.10.2", "A notificação deverá ocorrer pessoalmente, eletronicamente, com confirmação de recebimento, ou por correspondência com aviso de recebimento, indicando, no mínimo: a conduta reputada como infratora, a motivação para aplicação da penalidade, a sanção que se pretende aplicar, o prazo e o local de entrega das razões de defesa;"));
+children.push(SubItem("11.10.3", "O prazo para apresentação de defesa prévia para a penalidade de advertência será de 5 (cinco) dias úteis e de 15 (quinze) dias úteis para as demais penalidades, e serão contados na forma do art. 183 da Lei 14.133/2021;"));
+children.push(SubItem("11.10.4", "O contratado comunicará ao órgão promotor do certame as mudanças de endereço ocorridas no curso do processo licitatório e da vigência da contratação, considerando-se eficazes as notificações enviadas ao local anteriormente indicado, na ausência da comunicação;"));
+children.push(SubItem("11.10.5", "Ofertada a defesa prévia ou expirado o prazo sem que ocorra a sua apresentação, a Administração proferirá decisão fundamentada e adotará as medidas legais cabíveis, resguardado o direito de recurso, que deverá ser exercido nos termos da Lei 14.133/2021."));
+children.push(Item("11.11", "Os atos previstos como infrações administrativas na Lei 14.133/2021, ou em outras leis de licitações e contratos da Administração Pública que também sejam tipificados como atos lesivos na Lei 12.846/2013, serão apurados e julgados conjuntamente, nos mesmos autos, observados o rito procedimental e autoridade competente definidos na referida Lei (art. 159 da Lei 14.133/2021)."));
+children.push(Item("11.12", "A personalidade jurídica do Contratado poderá ser desconsiderada sempre que utilizada com abuso do direito para facilitar, encobrir ou dissimular a prática dos atos ilícitos previstos neste Contrato ou instrumento equivalente ou para provocar confusão patrimonial, e, nesse caso, todos os efeitos das sanções aplicadas à pessoa jurídica serão estendidos aos seus administradores e sócios com poderes de administração, à pessoa jurídica sucessora ou à empresa do mesmo ramo com relação de coligação ou controle, de fato ou de direito, com o Contratado, observados, em todos os casos, o contraditório, a ampla defesa e a obrigatoriedade de análise jurídica prévia (art. 160 da Lei 14.133/2021)."));
+children.push(Item("11.13", "O Contratante deverá, no prazo máximo de 15 (quinze) dias úteis, contado da data de aplicação da sanção, informar e manter atualizados os dados relativos às sanções por ela aplicadas, para fins de publicidade no Cadastro Nacional de Empresas Inidôneas e Suspensas (Ceis) e no Cadastro Nacional de Empresas Punidas (Cnep), instituídos no âmbito do Poder Executivo Federal (art. 161 da Lei 14.133/2021)."));
+children.push(Item("11.14", "As sanções de impedimento de licitar e contratar e declaração de inidoneidade para licitar ou contratar são passíveis de reabilitação, na forma do art. 163 da Lei 14.133/2021."));
+children.push(Item("11.15", "Os débitos relativos a multas moratória e compensatória, bem como as glosas e indenizações cabíveis, poderão ser descontados dos valores devidos pela Administração ao contratado e, se insuficientes, a diferença poderá ser descontada da garantia prestada ou ser objeto de cobrança judicial (art. 156, § 8º, da Lei 14.133/2021)."));
+children.push(SubItem("11.15.1", "Os débitos do contratado para com a Administração contratante poderão ser compensados, total ou parcialmente, com os créditos decorrentes de outros contratos administrativos que o contratado possua com o Estado do Espírito Santo."));
+children.push(Item("11.16", "Sem prejuízo da aplicação das sanções acima descritas, a prática de quaisquer atos lesivos à administração pública na licitação ou na execução do contrato ou instrumento equivalente, nos termos da Lei 12.846/2013, será objeto de imediata apuração observando-se o devido processo legal estabelecido no marco regulatório estadual anticorrupção."));
+
+// 12. RESPONSABILIDADES CONTRATANTE
+children.push(H1("12 - DAS RESPONSABILIDADES DA CONTRATANTE"));
+children.push(Item("12.1", "Efetuar o pagamento do preço previsto nos termos deste Termo, mediante apresentação da nota fiscal, que deverá vir acompanhada da ordem de fornecimento emitida, bem como do relatório detalhado dos serviços prestados;"));
+children.push(Item("12.2", "Designar servidor(es) responsável(eis) pelo acompanhamento e fiscalização da execução dos serviços contratados, conforme definido neste Termo;"));
+children.push(Item("12.3", "Fiscalizar e acompanhar a execução do objeto contratado;"));
+children.push(Item("12.4", "Assegurar os recursos orçamentários e financeiros para custear a contratação, efetuando o pagamento dentro do prazo convencionado;"));
+children.push(Item("12.5", "Atestar e liquidar a nota fiscal e/ou fatura correspondente aos serviços prestados, através de Ordem Bancária;"));
+children.push(Item("12.6", "Prestar as informações e os esclarecimentos que venham a ser solicitados pelos empregados da empresa contratada;"));
+children.push(Item("12.7", "Notificar, por escrito, a empresa contratada sobre ocorrência de eventuais imperfeições ou irregularidades encontradas na execução dos serviços;"));
+children.push(Item("12.8", "Disponibilizar ambiente de testes (sandbox) e documentação técnica dos sistemas legados durante a fase de implantação, viabilizando a homologação das integrações."));
+
+// 13. RESPONSABILIDADES CONTRATADA
+children.push(H1("13 - DAS RESPONSABILIDADES DA CONTRATADA"));
+children.push(Item("13.1", "Cumprir todas as obrigações, condições e prazos relativos à execução dos serviços contratados, conforme definido neste Termo de Referência;"));
+children.push(Item("13.2", "Providenciar a imediata correção das deficiências apontadas pelo setor competente da Contratante;"));
+children.push(Item("13.3", "Garantir a execução qualificada da contratação durante todo o período de vigência, observando os Níveis Mínimos de Serviço Exigidos (NMSE);"));
+children.push(Item("13.4", "Manter, durante toda a vigência contratual, as condições de habilitação exigidas na licitação;"));
+children.push(Item("13.5", "Cumprir integralmente as obrigações decorrentes da Lei nº 13.709/2018 (LGPD), incluindo a indicação de DPO, comunicação de incidentes em até 24 horas e gestão de sub-operadores, conforme item 4.10 deste TR;"));
+children.push(Item("13.6", "Apresentar mensalmente o Relatório de Acompanhamento de Execução do Contrato, contendo: listagem de chamados atendidos no período; comprovação do cumprimento dos NMSE; cálculo de eventuais glosas; consumo do Banco de Horas Técnicas (quando aplicável); recomendações técnicas para melhoria do ambiente."));
+
+children.push(Empty());
+children.push(Empty());
+children.push(new Paragraph({
+  alignment: AlignmentType.CENTER,
+  spacing: { before: 480, after: 120 },
+  children: [new TextRun({ text: "Vitória, _____ de ________________ de 2026.", size: 22 })]
+}));
+children.push(Empty());
+children.push(new Paragraph({
+  alignment: AlignmentType.CENTER,
+  spacing: { before: 240, after: 0 },
+  children: [new TextRun({ text: "Bruno Ferreira Bomfim", bold: true, size: 22 })]
+}));
+children.push(new Paragraph({
+  alignment: AlignmentType.CENTER,
+  spacing: { after: 0 },
+  children: [new TextRun({ text: "Subgerente de Saúde e Segurança no Trabalho", size: 22 })]
+}));
+children.push(new Paragraph({
+  alignment: AlignmentType.CENTER,
+  spacing: { after: 240 },
+  children: [new TextRun({ text: "SEGER/SUBAP/GESAT/SUSET", size: 22 })]
+}));
+
+// ============ ANEXO I - HABILITAÇÃO ============
+children.push(new Paragraph({
+  pageBreakBefore: true,
+  alignment: AlignmentType.CENTER,
+  spacing: { before: 240, after: 360 },
+  children: [new TextRun({ text: "ANEXO I — REQUISITOS DE HABILITAÇÃO", bold: true, size: 28 })]
+}));
+children.push(P("Para fins de habilitação, deverá o licitante comprovar os seguintes requisitos:"));
+
+children.push(H1("1 - HABILITAÇÃO JURÍDICA"));
+children.push(Item("1.1", "Pessoa física: cédula de identidade (RG) ou documento equivalente que, por força de lei, tenha validade para fins de identificação em todo o território nacional;"));
+children.push(Item("1.2", "Empresário individual: inscrição no Registro Público de Empresas Mercantis, a cargo da Junta Comercial da respectiva sede;"));
+children.push(Item("1.3", "Microempreendedor Individual (MEI): Certificado da Condição de Microempreendedor Individual — CCMEI, cuja aceitação ficará condicionada à verificação da autenticidade no sítio https://www.gov.br/empresas-e-negocios/pt-br/empreendedor;"));
+children.push(Item("1.4", "Sociedade empresária, sociedade limitada unipessoal ou sociedade identificada como empresa individual de responsabilidade limitada: inscrição do ato constitutivo, estatuto ou contrato social no Registro Público de Empresas Mercantis, a cargo da Junta Comercial da respectiva sede, acompanhada de documento comprobatório de seus administradores;"));
+children.push(Item("1.5", "Sociedade empresária estrangeira: portaria de autorização de funcionamento no Brasil, publicada no Diário Oficial da União e arquivada na Junta Comercial da unidade federativa onde se localizar a filial, agência, sucursal ou estabelecimento, a qual será considerada como sua sede, conforme Instrução Normativa DREI/ME nº 77, de 18 de março de 2020;"));
+children.push(Item("1.6", "Sociedade simples: inscrição do ato constitutivo no Registro Civil de Pessoas Jurídicas do local de sua sede, acompanhada de documento comprobatório de seus administradores;"));
+children.push(Item("1.7", "Filial, sucursal ou agência de sociedade simples ou empresária: inscrição do ato constitutivo da filial, sucursal ou agência da sociedade simples ou empresária, respectivamente, no Registro Civil das Pessoas Jurídicas ou no Registro Público de Empresas Mercantis onde opera, com averbação no Registro onde tem sede a matriz;"));
+children.push(Item("1.8", "Sociedade cooperativa: ata de fundação e estatuto social, com a ata da assembleia que o aprovou, devidamente arquivado na Junta Comercial ou inscrito no Registro Civil das Pessoas Jurídicas da respectiva sede, além do registro de que trata o art. 107 da Lei nº 5.764, de 16 de dezembro 1971."));
+children.push(Item("1.9", "Os documentos apresentados deverão estar acompanhados de todas as alterações ou da consolidação respectiva."));
+
+children.push(H1("2 - HABILITAÇÃO FISCAL, SOCIAL E TRABALHISTA"));
+children.push(Item("2.1", "Prova de inscrição no Cadastro Nacional de Pessoas Jurídicas (CNPJ) ou no Cadastro de Pessoas Físicas (CPF), conforme o caso;"));
+children.push(Item("2.2", "Prova de inscrição no cadastro de contribuintes estadual e/ou municipal relativo ao domicílio ou sede do fornecedor, pertinente ao seu ramo de atividade e compatível com o objeto contratual;"));
+children.push(SubItem("2.2.1", "Caso o fornecedor seja considerado isento dos tributos estaduais ou municipais relacionados ao objeto contratual, deverá comprovar tal condição mediante a apresentação de declaração da Fazenda respectiva do seu domicílio ou sede, ou outra equivalente, na forma da lei."));
+children.push(SubItem("2.2.2", "O fornecedor enquadrado como microempreendedor individual que pretenda auferir os benefícios do tratamento diferenciado previstos na Lei Complementar 123/2006 estará dispensado da prova de inscrição nos cadastros de contribuintes estadual e municipal."));
+children.push(Item("2.3", "Prova de regularidade fiscal perante a Fazenda Nacional, mediante apresentação de certidão negativa ou positiva com efeito de negativa, expedida conjuntamente pela Receita Federal do Brasil (RFB) e pela Procuradoria-Geral da Fazenda Nacional (PGFN), referente aos créditos tributários federais e à Dívida Ativa da União por elas administrados, inclusive aqueles relativos à Seguridade Social;"));
+children.push(Item("2.4", "Prova de regularidade com a Fazenda Estadual (onde for sediada a empresa e a do Estado do Espírito Santo, quando a sede não for deste Estado);"));
+children.push(Item("2.5", "Prova de regularidade com a Fazenda Pública Municipal da sede da licitante;"));
+children.push(Item("2.6", "Prova de regularidade com o Fundo de Garantia do Tempo de Serviço (FGTS), mediante certidão expedida pela Caixa Econômica Federal;"));
+children.push(Item("2.7", "Prova de regularidade perante a Justiça do Trabalho, mediante a apresentação de certidão negativa ou positiva com efeito de negativa, nos termos do Título VII-A da Consolidação das Leis do Trabalho;"));
+children.push(Item("2.8", "Caso o objeto contratual venha a ser cumprido por filial da licitante, os documentos exigidos neste item também deverão ser apresentados pela filial executora do contrato, sem prejuízo para a exigência de apresentação dos documentos relativos à sua matriz."));
+children.push(Item("2.9", "Nos casos de microempresas, empresas de pequeno porte ou equiparadas, não se exige comprovação de regularidade fiscal para fins de habilitação, mas somente para formalização da contratação, observadas as seguintes regras:"));
+children.push(SubItem("2.9.1", "A licitante deverá apresentar, à época da habilitação, todos os documentos exigidos para efeito de comprovação de regularidade fiscal, mesmo que apresentem alguma restrição."));
+children.push(SubItem("2.9.2", "Havendo alguma restrição na comprovação da regularidade fiscal ou trabalhista, é assegurado o prazo de 5 (cinco) dias úteis, cujo termo inicial corresponderá ao momento em que o proponente for declarado vencedor do certame, para a regularização da documentação, pagamento ou parcelamento do débito, e emissão de eventuais certidões negativas ou positivas com efeito de certidão negativa."));
+children.push(SubItem("2.9.3", "O prazo a que se refere o item anterior poderá, a critério da Administração Pública, ser prorrogado por igual período."));
+children.push(SubItem("2.9.4", "A formalização da contratação fica condicionada à regularização da documentação comprobatória de regularidade fiscal e trabalhista, sob pena de decadência do direito à contratação."));
+
+children.push(H1("3 - HABILITAÇÃO TÉCNICA"));
+children.push(Item("3.1", "Comprovação de aptidão para execução de serviço de complexidade equivalente ou superior com o objeto desta contratação, ou com o item pertinente, por meio da apresentação de certidões ou atestados, emitidos por pessoas jurídicas de direito público ou privado, ou regularmente emitidos pelo conselho profissional competente, quando for o caso."));
+children.push(SubItem("3.1.1", "Para fins da comprovação de que trata este subitem, os atestados deverão dizer respeito a contratos executados com as seguintes características mínimas:"));
+children.push(SubItem("(a)", "Fornecimento de Software de Saúde e Segurança do Trabalho através de subscrição (Cessão de Uso Temporário de Licenças), disponibilizada no modelo Software as a Service (SaaS);", 720));
+children.push(SubItem("(b)", "Quantitativo mínimo de 30.000 (trinta mil) vidas, correspondente a 50% (cinquenta por cento) das parcelas de maior relevância, conforme art. 67, § 2º, da Lei nº 14.133/2021;", 720));
+children.push(SubItem("(c)", "Integração com o eSocial para envio de eventos de SST.", 720));
+children.push(Item("3.2", "Será admitida, para fins de comprovação de quantitativo mínimo, a apresentação e o somatório de diferentes atestados de serviços executados de forma concomitante, pois essa situação equivale, para fins de comprovação de capacidade técnico-operacional, a uma única contratação."));
+children.push(Item("3.3", "Os atestados de capacidade técnica podem ser apresentados em nome da matriz ou da filial da empresa licitante."));
+children.push(Item("3.4", "Em caso de apresentação por licitante de atestado de desempenho anterior emitido em favor de consórcio do qual tenha feito parte, observar-se-á o disposto no art. 67, §§ 10 e 11, da Lei 14.133/2021."));
+children.push(Item("3.5", "O licitante disponibilizará todas as informações necessárias à comprovação da legitimidade dos atestados, apresentando, quando solicitado pela Administração, cópia do contrato que deu suporte à contratação, endereço atual da contratante e local em que foram prestados os serviços, entre outros documentos."));
+children.push(Item("3.6", "Comprovação de que o fornecedor/fabricante da solução é certificado pela ISO/IEC 27001 (Sistema de Gestão de Segurança da Informação), mediante apresentação do certificado vigente. Caso o fornecedor não possua a certificação, deverá apresentar relatório técnico de auditoria independente comprovando a aderência aos requisitos de segurança exigidos no item 4.7 deste TR."));
+children.push(Item("3.7", "Declaração de que o licitante tomou conhecimento de todas as informações e das condições locais para o cumprimento das obrigações objeto da licitação;"));
+children.push(SubItem("3.7.1", "A declaração acima poderá ser substituída por declaração formal assinada pelo responsável técnico do licitante acerca do conhecimento pleno das condições e peculiaridades da contratação."));
+
+children.push(H1("4 - HABILITAÇÃO ECONÔMICO-FINANCEIRA"));
+children.push(Item("4.1", "Certidão negativa de insolvência civil expedida pelo distribuidor do domicílio ou sede do licitante, caso se trate de sociedade simples ou de pessoa física, desde que admitida a sua participação na licitação;"));
+children.push(Item("4.2", "Certidão negativa de falência expedida pelo distribuidor da sede do licitante, para as demais pessoas jurídicas;"));
+children.push(Item("4.3", "Caso a licitante se encontre em processo de recuperação judicial ou extrajudicial, deverá apresentar certidão emitida pela instância judicial competente certificando que a interessada está apta econômica e financeiramente a participar da licitação, além de cumprir todos os demais requisitos de habilitação exigidos por este Edital."));
+children.push(Item("4.4", "Balanço Patrimonial (BP) e Demonstração de Resultado de Exercício (DRE) dos 2 (dois) últimos exercícios sociais, comprovando:"));
+children.push(SubItem("4.4.1", "Índices de Liquidez Geral (LG), Liquidez Corrente (LC) e Solvência Geral (SG) superiores a 1 (um), calculados conforme as fórmulas: LG = (Ativo Circulante + Realizável a Longo Prazo) / (Passivo Circulante + Passivo Não Circulante); SG = Ativo Total / (Passivo Circulante + Passivo Não Circulante); LC = Ativo Circulante / Passivo Circulante."));
+children.push(SubItem("4.4.2", "Quando qualquer dos índices for igual ou inferior a 1 (um), poderá o licitante atender ao requisito de habilitação demonstrando patrimônio líquido não inferior a 10% (dez por cento) do valor estimado da contratação."));
+children.push(Item("4.5", "Os documentos referidos acima (BP e DRE) serão os já exigíveis na forma da lei, com base no limite definido pela Receita Federal do Brasil para transmissão da Escrituração Contábil Digital (ECD) ao SPED ou, se a empresa não estiver obrigada ao SPED, observando a data de exigibilidade do art. 1.078, I, do Código Civil."));
+children.push(Item("4.6", "Declaração assinada por profissional habilitado da área contábil, apresentada pelo licitante, demonstrando o atendimento dos índices e coeficientes para cada exercício a que se referem as demonstrações contábeis, bem como demonstrando o patrimônio líquido mínimo exigido no último exercício."));
+children.push(Item("4.7", "As empresas criadas no exercício financeiro da licitação deverão atender a todas as exigências da habilitação e poderão substituir os demonstrativos contábeis pelo balanço de abertura."));
+children.push(Item("4.8", "Os documentos referidos acima limitar-se-ão ao último exercício no caso de a pessoa jurídica ter sido constituída há menos de 2 (dois) anos."));
+children.push(Item("4.9", "No caso de consórcio, se admitida a sua participação no edital, deverá haver a demonstração, por cada consorciado, do atendimento aos índices contábeis definidos neste Edital."));
+
+// ============ ANEXO II ============
+children.push(new Paragraph({
+  pageBreakBefore: true,
+  alignment: AlignmentType.CENTER,
+  spacing: { before: 240, after: 360 },
+  children: [new TextRun({ text: "ANEXO II — MODELO DE ORDEM DE SERVIÇOS / FORNECIMENTO", bold: true, size: 28 })]
+}));
+children.push(P("Ordem de Fornecimento nº _____/2026.", { bold: true }));
+children.push(P("À Empresa: __________________________________________"));
+children.push(P("Endereço: __________________________________________"));
+children.push(P("CNPJ: ______________________   Telefone: ______________   E-mail: ______________________"));
+children.push(Empty());
+children.push(P("Autorizamos Vossa Senhoria a fornecer os serviços a seguir discriminados, observadas as especificações e demais condições constantes do Termo de Referência e da proposta no Processo nº __________________."));
+children.push(H2("I - DO OBJETO"));
+const objAnexoTable = new Table({
+  width: { size: 9000, type: WidthType.DXA },
+  columnWidths: [600, 3400, 1200, 1200, 1300, 1300],
+  rows: [
+    new TableRow({
+      tableHeader: true, children: [
+        tCell("ITEM", { header: true, width: 600, align: AlignmentType.CENTER }),
+        tCell("DESCRIÇÃO / ESPECIFICAÇÃO", { header: true, width: 3400, align: AlignmentType.CENTER }),
+        tCell("UNIDADE", { header: true, width: 1200, align: AlignmentType.CENTER }),
+        tCell("QUANT", { header: true, width: 1200, align: AlignmentType.CENTER }),
+        tCell("VALOR UNIT.", { header: true, width: 1300, align: AlignmentType.CENTER }),
+        tCell("VALOR TOTAL", { header: true, width: 1300, align: AlignmentType.CENTER }),
+      ]
+    }),
+    ...[1, 2, 3].map(i => new TableRow({
+      children: [
+        tCell(String(i), { width: 600, align: AlignmentType.CENTER }),
+        tCell("", { width: 3400 }),
+        tCell("", { width: 1200 }),
+        tCell("", { width: 1200 }),
+        tCell("", { width: 1300 }),
+        tCell("", { width: 1300 }),
+      ]
+    })),
+    new TableRow({
+      children: [
+        new TableCell({
+          borders, width: { size: 7700, type: WidthType.DXA }, columnSpan: 5,
+          margins: { top: 80, bottom: 80, left: 120, right: 120 },
+          children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "Valor total em R$:", bold: true, size: 20 })] })]
+        }),
+        tCell("", { width: 1300 })
+      ]
+    }),
+  ]
+});
+children.push(objAnexoTable);
+children.push(Empty());
+children.push(P("Valor Total da contratação é de R$ __________________"));
+
+children.push(H2("II - DA DOTAÇÃO ORÇAMENTÁRIA"));
+children.push(P("As despesas decorrentes da presente Ordem de Fornecimento correrão à conta da Atividade: __________ Natureza de Despesas: __________ do orçamento da SEGER para o exercício de 2026 — Empenho 2026."));
+
+children.push(H2("III - DAS DEMAIS CONDIÇÕES"));
+children.push(P("As condições de recebimento dos serviços, bem como o pagamento, obedecerão ao disposto no Termo de Referência, devendo ainda serem observadas as informações da Contratante para faturamento, discriminadas a seguir:"));
+const dadosTable = new Table({
+  width: { size: 9000, type: WidthType.DXA },
+  columnWidths: [3000, 6000],
+  rows: [
+    new TableRow({
+      children: [
+        tCell("Contratante / Tomador / Destinatário", { width: 3000, bold: true }),
+        tCell("Secretaria de Estado de Gestão e Recursos Humanos — SEGER", { width: 6000 })
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("CNPJ", { width: 3000, bold: true }),
+        tCell("07.162.270/0001-48", { width: 6000 })
+      ]
+    }),
+    new TableRow({
+      children: [
+        tCell("Endereço", { width: 3000, bold: true }),
+        tCell("Avenida Vitória, nº 2703, Horto, Vitória/ES — CEP 29.045-160", { width: 6000 })
+      ]
+    }),
+  ]
+});
+children.push(dadosTable);
+children.push(Empty());
+children.push(P("Local para entrega: ________________________________"));
+children.push(P("Vitória/ES, _____ de _________________ de 2026."));
+children.push(Empty());
+children.push(P("EQUIPE GESTORA DO CONTRATO OU INSTRUMENTO EQUIVALENTE", { align: AlignmentType.CENTER, bold: true }));
+children.push(P("Secretaria de Estado de Gestão e Recursos Humanos — SEGER", { align: AlignmentType.CENTER }));
+children.push(P("(Documento original assinado eletronicamente, conforme art. 6, § 1º, do Decreto nº 4.410-R/2019)", { align: AlignmentType.CENTER, italic: true }));
+children.push(Empty()); children.push(Empty());
+children.push(P("Recebi o original desta Ordem de Fornecimento, ciente das condições estabelecidas."));
+children.push(P("Vitória/ES, _____ de _________________ de 2026."));
+children.push(Empty()); children.push(Empty());
+children.push(P("________________________________________", { align: AlignmentType.CENTER }));
+children.push(P("Assinatura da Empresa", { align: AlignmentType.CENTER, bold: true }));
+
+// ============ ANEXO III - MATRIZ DE RISCOS ============
+children.push(new Paragraph({
+  pageBreakBefore: true,
+  alignment: AlignmentType.CENTER,
+  spacing: { before: 240, after: 240 },
+  children: [new TextRun({ text: "ANEXO III — MATRIZ DE ALOCAÇÃO DE RISCOS DO CONTRATO", bold: true, size: 28 })]
+}));
+children.push(P("(arts. 21 e 28 do Decreto nº 5.352-R, de 28 de março de 2023, e art. 72, inciso I, da Lei nº 14.133/2021)", { align: AlignmentType.CENTER, italic: true }));
+children.push(Empty());
+
+const riscos = [
+  {
+    n: 1,
+    desc: "Interrupção do acesso ou instabilidade técnica na plataforma SaaS superior aos limites do SLA.",
+    prob: "(   ) Pouco    ( x ) Provável    (   ) Muito",
+    imp: "(   ) Baixo    (   ) Médio    ( x ) Alto",
+    mat: "Inacessibilidade da solução para os usuários, comprometendo registros tempestivos de SST e cumprimento de obrigações junto ao eSocial; aplicação de glosas conforme itens 5.7 a 5.10 do TR.",
+    miti: "Infraestrutura redundante e georredundante; alta disponibilidade contratada do provedor de nuvem; monitoramento proativo 24x7 com alertas automáticos; cumprimento de RTO ≤ 4h e RPO ≤ 1h (item 5.4.4).",
+    aloc: "Contratada"
+  },
+  {
+    n: 2,
+    desc: "Falha nos mecanismos de armazenamento ou backup, resultando na perda de informações da Contratante.",
+    prob: "( x ) Pouco    (   ) Provável    (   ) Muito",
+    imp: "(   ) Baixo    (   ) Médio    ( x ) Alto",
+    mat: "Perda parcial ou total de dados sensíveis de saúde dos servidores, comprometendo histórico ocupacional, defesa de passivos trabalhistas e cumprimento da LGPD; responsabilização civil e administrativa da Contratada.",
+    miti: "Backup incremental diário e completo semanal; armazenamento georredundante em duas regiões nacionais; testes trimestrais de restauração com relatório à Contratante; retenção mínima de 12 meses (item 4.37).",
+    aloc: "Contratada"
+  },
+  {
+    n: 3,
+    desc: "Erros na comunicação via API com os sistemas legados da Contratante (SIARHES, eSocial, INSS).",
+    prob: "(   ) Pouco    ( x ) Provável    (   ) Muito",
+    imp: "(   ) Baixo    ( x ) Médio    (   ) Alto",
+    mat: "Inconsistência cadastral entre sistemas, risco de envios indevidos ao eSocial e de cálculo incorreto de FAP. Cada parte arca com a correção de suas respectivas interfaces.",
+    miti: "Padrão tecnológico definido (REST/JSON); documentação de API completa; ambiente sandbox disponibilizado pela Contratante; testes de homologação prévia; suporte técnico conjunto na fase de implantação (itens 4.23 e 4.24).",
+    aloc: "Compartilhado"
+  },
+  {
+    n: 4,
+    desc: "Dificuldade dos servidores em utilizar a nova ferramenta devido à complexidade ou falta de engajamento.",
+    prob: "(   ) Pouco    ( x ) Provável    (   ) Muito",
+    imp: "(   ) Baixo    ( x ) Médio    (   ) Alto",
+    mat: "Subutilização da ferramenta, retrabalho manual, atrasos na obtenção do retorno operacional esperado.",
+    miti: "Solução com UX amigável e responsiva; treinamentos por perfil de usuário com material em português (itens 4.41 a 4.46); ações de comunicação interna e workshops de sensibilização promovidos pela Contratante; apoio formal da alta gestão.",
+    aloc: "Compartilhado"
+  },
+  {
+    n: 5,
+    desc: "Demora no atendimento ou incapacidade de resolver incidentes nos prazos estabelecidos no NMSE.",
+    prob: "(   ) Pouco    ( x ) Provável    (   ) Muito",
+    imp: "( x ) Baixo    (   ) Médio    (   ) Alto",
+    mat: "Aplicação de glosas escalonadas por chamado descumprido (item 5.8) e, em caso de reincidência, aplicação de sanções administrativas previstas no item 11 do TR.",
+    miti: "Dimensionamento adequado da equipe de Help Desk; estrutura de escalonamento (N1, N2, N3); plantão técnico 24x7 para severidade Crítica; ferramenta de helpdesk com monitoramento de SLA em tempo real.",
+    aloc: "Contratada"
+  },
+  {
+    n: 6,
+    desc: "Acesso não autorizado ou vazamento de dados sensíveis de saúde sob guarda do sistema.",
+    prob: "( x ) Pouco    (   ) Provável    (   ) Muito",
+    imp: "(   ) Baixo    (   ) Médio    ( x ) Alto",
+    mat: "Responsabilização da Contratada perante a ANPD e titulares dos dados; possíveis multas administrativas; danos reputacionais à Administração; obrigatoriedade de notificação em até 24h (item 4.10.4), exceto se culpa exclusiva de usuário da Contratante.",
+    miti: "Criptografia em trânsito e em repouso (item 4.12); controle de acesso baseado em perfis com princípio do menor privilégio; logs imutáveis com estado anterior/posterior (item 4.11); certificação ISO 27001 obrigatória e ISO 27701 recomendada; testes periódicos de intrusão.",
+    aloc: "Contratada"
+  },
+  {
+    n: 7,
+    desc: "O sistema deixar de atender a novas legislações de SST, NRs ou layouts do eSocial publicados durante a vigência.",
+    prob: "(   ) Pouco    (   ) Provável    ( x ) Muito",
+    imp: "(   ) Baixo    ( x ) Médio    (   ) Alto",
+    mat: "Risco de inconformidade legal e impossibilidade de envio dos eventos obrigatórios; multas e passivos previdenciários para a Administração. A Contratada deve absorver o custo de adequação como parte da manutenção evolutiva legal.",
+    miti: "Cláusula contratual de atualização legal mandatória sem custo adicional (item 5.4.3); monitoramento ativo das Notas Técnicas do eSocial e das publicações do MTE pela Contratada; comunicação prévia à Contratante sobre atualizações em desenvolvimento.",
+    aloc: "Contratada"
+  },
+  {
+    n: 8,
+    desc: "Oposição interna à mudança de processos pelos servidores e gestores (resistência à digitalização).",
+    prob: "(   ) Pouco    ( x ) Provável    (   ) Muito",
+    imp: "(   ) Baixo    ( x ) Médio    (   ) Alto",
+    mat: "Atrasos operacionais e baixa adoção da solução decorrentes de fatores humanos internos da Contratante; manutenção informal de processos paralelos em papel.",
+    miti: "Plano de gestão de mudança liderado pela Contratante; ações de comunicação interna; workshops de sensibilização; apoio formal da alta gestão; normatização interna de uso obrigatório do sistema; designação de multiplicadores em cada órgão.",
+    aloc: "Contratante"
+  },
+  {
+    n: 9,
+    desc: "Demora na entrega do ambiente configurado para início da operação além dos prazos da fase de implantação.",
+    prob: "(   ) Pouco    ( x ) Provável    (   ) Muito",
+    imp: "(   ) Baixo    ( x ) Médio    (   ) Alto",
+    mat: "Atraso no ganho operacional esperado; aplicação de multa moratória por dia de atraso e retenção de pagamentos até a regularização (item 11.2.5).",
+    miti: "Cronograma detalhado validado no Kick-off; equipe dedicada à implantação por parte da Contratada; designação de equipe interlocutora pela Contratante; reuniões semanais de acompanhamento; marcos contratuais claros com penalidades específicas.",
+    aloc: "Compartilhado"
+  },
+  {
+    n: 10,
+    desc: "Alterações nos layouts do eSocial pelo Governo Federal que impactem o envio de eventos durante a vigência.",
+    prob: "(   ) Pouco    (   ) Provável    ( x ) Muito",
+    imp: "(   ) Baixo    ( x ) Médio    (   ) Alto",
+    mat: "Necessidade de adequação tempestiva da solução; custos de desenvolvimento exclusivos da Contratada (item 5.4.3); risco de interrupção temporária dos envios.",
+    miti: "Acompanhamento das Notas Técnicas do eSocial e da Receita Federal; equipe técnica especializada em eSocial; atualização preventiva do software antes da vigência das novas regras; comunicação prévia à Contratante sobre cronograma de adaptações.",
+    aloc: "Contratada"
+  },
+  {
+    n: 11,
+    desc: "Falência, recuperação judicial ou abandono do contrato pela fornecedora.",
+    prob: "( x ) Pouco    (   ) Provável    (   ) Muito",
+    imp: "(   ) Baixo    (   ) Médio    ( x ) Alto",
+    mat: "Risco de descontinuidade do serviço com impacto direto em obrigações legais e operacionais; necessidade de execução da garantia contratual e de aplicação de declaração de inidoneidade.",
+    miti: "Exigência rigorosa de qualificação econômico-financeira na licitação (Anexo I, item 4); garantia contratual de 5% (item 4.54); Plano de Transição (Exit Plan) obrigatório no item 5.12; portabilidade plena dos dados em formato aberto e documentado; backup mensal entregue à Contratante.",
+    aloc: "Contratante"
+  },
+];
+
+riscos.forEach((r, i) => {
+  children.push(riskBox(r.n, r.desc, r.prob, r.imp, r.mat, r.miti, r.aloc));
+  if (i < riscos.length - 1) children.push(Empty());
+});
+
+// ============ BUILD DOC ============
+const doc = new Document({
+  creator: "SEGER/SUSET",
+  title: "Termo de Referência — Sistema de SST",
+  styles: {
+    default: { document: { run: { font: "Arial", size: 22 } } },
+    paragraphStyles: [
+      {
+        id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true,
+        run: { size: 28, bold: true, font: "Arial" },
+        paragraph: { spacing: { before: 360, after: 180 }, outlineLevel: 0 }
+      },
+      {
+        id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true,
+        run: { size: 24, bold: true, font: "Arial" },
+        paragraph: { spacing: { before: 240, after: 120 }, outlineLevel: 1 }
+      },
+    ]
+  },
+  sections: [{
+    properties: {
+      page: {
+        size: { width: 11906, height: 16838 }, // A4
+        margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
+      }
+    },
+    headers: {
+      default: new Header({
+        children: [new Paragraph({
+          alignment: AlignmentType.LEFT,
+          children: [new TextRun({ text: "Governo do Estado do Espírito Santo", italics: true, size: 18, color: "555555" })]
+        })]
+      })
+    },
+    footers: {
+      default: new Footer({
+        children: [new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [
+            new TextRun({ text: "Página ", size: 18 }),
+            new TextRun({ children: [PageNumber.CURRENT], size: 18 }),
+            new TextRun({ text: " de ", size: 18 }),
+            new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 18 })
+          ]
+        })]
+      })
+    },
+    children: children
+  }]
+});
+
+Packer.toBuffer(doc).then(buf => {
+  fs.writeFileSync("/home/claude/TR_Final_v3.docx", buf);
+  console.log("Created TR_Final_v3.docx, size:", buf.length, "bytes, paragraphs:", children.length);
+});
